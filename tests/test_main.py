@@ -47,21 +47,38 @@ class TestMainModule:
         result = validate_environment()
         assert result is False
     
+    @patch('main.check_vapi_connectivity')
     @patch('main.validate_environment')
-    def test_health_check_success(self, mock_validate_env):
+    def test_health_check_success(self, mock_validate_env, mock_vapi_check):
         """Test health check with successful validation."""
         mock_validate_env.return_value = True
+        mock_vapi_check.return_value = True
         result = health_check()
         assert result is True
         mock_validate_env.assert_called_once()
+        mock_vapi_check.assert_called_once()
     
+    @patch('main.check_vapi_connectivity')
     @patch('main.validate_environment')
-    def test_health_check_failure(self, mock_validate_env):
+    def test_health_check_failure(self, mock_validate_env, mock_vapi_check):
         """Test health check with failed validation."""
         mock_validate_env.return_value = False
+        # Vapi check shouldn't be called if environment validation fails
         result = health_check()
         assert result is False
         mock_validate_env.assert_called_once()
+        mock_vapi_check.assert_not_called()
+    
+    @patch('main.check_vapi_connectivity')
+    @patch('main.validate_environment')
+    def test_health_check_vapi_failure(self, mock_validate_env, mock_vapi_check):
+        """Test health check with failed Vapi connectivity."""
+        mock_validate_env.return_value = True
+        mock_vapi_check.return_value = False
+        result = health_check()
+        assert result is False
+        mock_validate_env.assert_called_once()
+        mock_vapi_check.assert_called_once()
 
 
 class TestProjectStructure:

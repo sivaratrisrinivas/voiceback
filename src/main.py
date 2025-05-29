@@ -17,6 +17,9 @@ sys.path.insert(0, str(Path(__file__).parent))
 from dotenv import load_dotenv
 from loguru import logger
 
+# Application imports
+from vapi_client import VapiClient, VapiConnectionError, VapiAuthenticationError
+
 # Application configuration
 load_dotenv()
 
@@ -51,6 +54,27 @@ def validate_environment():
     logger.info("Environment validation passed")
     return True
 
+def check_vapi_connectivity():
+    """Check Vapi API connectivity and authentication."""
+    try:
+        with VapiClient() as vapi_client:
+            success = vapi_client.health_check()
+            if success:
+                logger.info("Vapi API connectivity check passed")
+                return True
+            else:
+                logger.error("Vapi API connectivity check failed")
+                return False
+    except VapiAuthenticationError as e:
+        logger.error(f"Vapi authentication failed: {str(e)}")
+        return False
+    except VapiConnectionError as e:
+        logger.error(f"Vapi connection failed: {str(e)}")
+        return False
+    except Exception as e:
+        logger.error(f"Unexpected error during Vapi connectivity check: {str(e)}")
+        return False
+
 def health_check():
     """Perform basic health check of the application."""
     logger.info("Performing health check...")
@@ -59,7 +83,10 @@ def health_check():
     if not validate_environment():
         return False
     
-    # TODO: Add Vapi connectivity check in Step 2
+    # Check Vapi connectivity
+    if not check_vapi_connectivity():
+        return False
+    
     # TODO: Add configuration validation in Step 5
     
     logger.info("Health check passed - system ready")
