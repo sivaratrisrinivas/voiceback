@@ -269,7 +269,3 @@
 - [x] Data model test fixtures and validation scenarios
 - [ ] Create test emotion inputs
 
-## Documentation
-
-### Core Documentation
-- [ ] Create `
