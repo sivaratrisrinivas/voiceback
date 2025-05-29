@@ -1,8 +1,8 @@
 # Voiceback - Development Checklist
 
-## Project Status: Step 5 Complete - Configuration System Foundation
+## Project Status: Step 6 Complete - Enhanced Configuration Loading & Validation
 
-### Phase 2: Configuration System (Step 5 Complete ✅)
+### Phase 2: Enhanced Configuration System (Step 6 Complete ✅)
 
 ## Project Setup & Environment
 
@@ -18,6 +18,7 @@
   - [x] python-dotenv
   - [x] pytest
   - [x] logging libraries
+  - [x] jsonschema for configuration validation
 - [x] Create `.env` template file with required variables
 - [x] Create `.gitignore` file (updated for config directory handling)
 - [x] Set up virtual environment
@@ -35,14 +36,16 @@
   - [x] `ENVIRONMENT`
   - [x] `WEBHOOK_HOST`
   - [x] `WEBHOOK_PORT`
+  - [x] `CONFIG_PATH` (optional, defaults to config/responses.json)
 
 ## Core Application Files
 
 ### Main Application Structure
-- [x] Create `src/main.py` - Entry point and webhook server
+- [x] Create `src/main.py` - Entry point and webhook server (enhanced with configuration management)
 - [x] Create `src/vapi_client.py` - Vapi API integration (with corrected health check)
 - [x] Create `src/call_handler.py` - Call lifecycle management (Step 3 complete)
-- [x] Create `src/config_manager.py` - Configuration loading and validation (Step 5 complete)
+- [x] Create `src/config_manager.py` - Enhanced configuration loading and validation (Step 6 complete)
+- [x] Create `src/models.py` - Data models for type-safe configuration handling (Step 6 complete)
 - [ ] Create `src/call_flow_manager.py` - State machine for call flow
 - [ ] Create `src/call_state.py` - Call state tracking
 - [ ] Create `src/historical_echo.py` - Main application orchestrator
@@ -84,14 +87,18 @@
 - [ ] Set up session tracking
 - [ ] Configure log rotation and cleanup
 
-## Configuration Files (Step 5 Complete ✅)
+## Configuration Files (Step 6 Complete ✅)
 
-### Response Configuration (Step 5 Complete ✅)
-- [x] Create `config/responses.json` with initial emotion mappings:
+### Enhanced Response Configuration (Step 6 Complete ✅)
+- [x] Create `config/responses.json` with robust emotion mappings:
   - [x] Anxiety responses (Seneca with context lines and encouragement)
   - [x] Sadness responses (Marcus Aurelius with context lines and encouragement)
   - [x] Proper JSON structure with figure, context_lines, quote, encouragement_lines
-  - [x] Configuration management with validation
+  - [x] JSON Schema validation with comprehensive error handling
+  - [x] Business rules validation (e.g., no generic figure names)
+  - [x] Thread-safe configuration management with caching
+  - [x] Hot-reload capability via API endpoint
+  - [x] Configuration statistics and monitoring
 - [ ] Add more historical figures per emotion (2-3 total for variety)
 - [ ] Add Frustration responses
 - [ ] Add Uncertainty responses
@@ -123,21 +130,40 @@
 
 ## Core Functionality Implementation
 
-### Configuration System (Step 5 Complete ✅)
-- [x] Implement ConfigManager class:
-  - [x] load_config() method with comprehensive validation
+### Enhanced Configuration System (Step 6 Complete ✅)
+- [x] Implement enhanced ConfigManager class:
+  - [x] load_config() method with JSON Schema validation
   - [x] get_emotions() method for available emotions list
   - [x] get_response(emotion) method for emotion lookup
+  - [x] get_all_responses(emotion) method for multiple response support
   - [x] is_emotion_supported() method for emotion checking
-  - [x] Robust error handling for missing/invalid config files
-  - [x] JSON structure validation (required fields, data types)
-  - [x] Configuration caching and state management
-- [x] Configuration file validation:
+  - [x] reload_config() method for hot-reloading
+  - [x] validate_config_file() method for standalone validation
+  - [x] Thread-safe operations with RLock
+  - [x] Configuration caching with modification time tracking
+  - [x] Comprehensive error handling with ConfigurationError
+- [x] Advanced configuration validation:
+  - [x] JSON Schema validation with Draft7Validator
   - [x] Required fields checking (figure, context_lines, quote, encouragement_lines)
   - [x] Data type validation for all fields
-  - [x] Non-empty validation for strings and arrays
-  - [x] Comprehensive error messages for debugging
-- [x] Updated .gitignore for proper config directory handling
+  - [x] String length and array size validation
+  - [x] Business rules validation (no generic figure names)
+  - [x] Empty value prevention
+  - [x] Detailed error messages with path information
+- [x] Data models for type safety (Step 6 Complete ✅):
+  - [x] HistoricalFigure dataclass with validation
+  - [x] EmotionResponse dataclass with utility methods
+  - [x] ConfigurationStats for monitoring and insights
+  - [x] Immutable data structures where appropriate
+  - [x] Factory methods for creating from configuration data
+  - [x] Randomization methods for response variety
+- [x] Main application integration (Step 6 Complete ✅):
+  - [x] Configuration loading on startup with validation
+  - [x] Enhanced health checks with configuration status
+  - [x] Configuration reload API endpoint (POST /config/reload)
+  - [x] Configuration file modification detection
+  - [x] Graceful startup failure handling
+  - [x] Detailed logging with configuration statistics
 
 ### Call Flow Management (Step 4 Complete)
 - [x] Implement basic call handling infrastructure:
@@ -190,12 +216,19 @@
 
 ## Testing Suite
 
-### Unit Tests (Step 5 Complete ✅)
+### Unit Tests (Step 6 Complete ✅)
 - [x] `tests/test_main.py` - Basic setup verification (10 tests)
 - [x] `tests/test_vapi_client.py` - API connectivity tests (24 tests)
 - [x] `tests/test_call_handler.py` - Call lifecycle tests (23 tests)
 - [x] `tests/test_voice_delivery.py` - Voice delivery tests (13 tests)
-- [x] `tests/test_config_manager.py` - Configuration tests (20 tests)
+- [x] `tests/test_config_manager.py` - Enhanced configuration tests (25 tests):
+  - [x] Configuration loading and caching tests
+  - [x] JSON Schema validation tests
+  - [x] Business rules validation tests
+  - [x] Hot-reload functionality tests
+  - [x] Thread safety tests
+  - [x] Data model tests (HistoricalFigure, EmotionResponse, ConfigurationStats)
+  - [x] Error handling and edge case tests
 - [ ] `tests/test_call_flow_manager.py` - State machine tests
 - [ ] `tests/test_call_state.py` - State management tests
 - [ ] `tests/test_text_processor.py` - Text processing tests
@@ -206,12 +239,17 @@
 - [ ] `tests/test_crisis_detector.py` - Crisis detection tests
 - [ ] `tests/test_logging_manager.py` - Logging tests
 
-### Integration Tests (Step 5 Complete ✅)
+### Integration Tests (Step 6 Complete ✅)
 - [x] CallHandler integration tests (multiple concurrent calls, complete lifecycle)
 - [x] Voice delivery integration tests (complete call cycle with greeting)
 - [x] Assistant configuration tests (both webhook formats)
 - [x] Call termination and timing tests
-- [x] ConfigManager integration tests (file loading, validation, emotion retrieval)
+- [x] Enhanced ConfigManager integration tests:
+  - [x] Configuration file loading and validation
+  - [x] Emotion retrieval and response selection
+  - [x] Hot-reload via API endpoint testing
+  - [x] Configuration statistics generation
+  - [x] Health check integration with configuration status
 - [ ] `tests/test_integration.py` - End-to-end call flow
 - [ ] Test emotion detection → response selection flow
 - [ ] Test voice delivery with timing
@@ -219,12 +257,16 @@
 - [ ] Test crisis detection and response
 - [ ] Test concurrent call handling
 
-### Test Data & Fixtures (Step 5 Complete ✅)
+### Test Data & Fixtures (Step 6 Complete ✅)
 - [x] Create mock Vapi API responses
 - [x] Create mock webhook calls for testing
 - [x] VapiClient method tests (register_webhook_endpoint, create_assistant, end_call, get_call_status)
-- [x] Configuration validation test fixtures (valid/invalid configs)
-- [x] Comprehensive ConfigManager test scenarios
+- [x] Enhanced configuration validation test fixtures:
+  - [x] Valid configuration examples
+  - [x] Invalid configuration scenarios (missing fields, wrong types, etc.)
+  - [x] Business rule violation examples
+  - [x] Edge cases for schema validation
+- [x] Data model test fixtures and validation scenarios
 - [ ] Create test emotion inputs
 
 ## Documentation

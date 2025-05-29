@@ -2,120 +2,206 @@
 Configuration manager for Voiceback emotion responses.
 
 This module handles loading and validating the emotion-to-quote configuration
-from config/responses.json.
+from config/responses.json with robust schema validation and caching.
 """
 
 import json
 import os
-import logging
+import threading
 from typing import Dict, List, Any, Optional
+from loguru import logger
+import jsonschema
+from jsonschema import Draft7Validator
+
+
+class ConfigurationError(Exception):
+    """Raised when configuration loading or validation fails."""
+    pass
 
 
 class ConfigManager:
     """Manages loading and validation of emotion response configurations."""
     
+    # JSON Schema for validating responses.json structure
+    RESPONSE_SCHEMA = {
+        "$schema": "http://json-schema.org/draft-07/schema#",
+        "type": "object",
+        "patternProperties": {
+            "^[a-zA-Z_][a-zA-Z0-9_]*$": {
+                "type": "array",
+                "minItems": 1,
+                "items": {
+                    "type": "object",
+                    "properties": {
+                        "figure": {
+                            "type": "string",
+                            "minLength": 1,
+                            "maxLength": 100
+                        },
+                        "context_lines": {
+                            "type": "array",
+                            "minItems": 1,
+                            "maxItems": 10,
+                            "items": {
+                                "type": "string",
+                                "minLength": 1,
+                                "maxLength": 500
+                            }
+                        },
+                        "quote": {
+                            "type": "string",
+                            "minLength": 1,
+                            "maxLength": 1000
+                        },
+                        "encouragement_lines": {
+                            "type": "array",
+                            "minItems": 1,
+                            "maxItems": 10,
+                            "items": {
+                                "type": "string",
+                                "minLength": 1,
+                                "maxLength": 500
+                            }
+                        }
+                    },
+                    "required": ["figure", "context_lines", "quote", "encouragement_lines"],
+                    "additionalProperties": False
+                }
+            }
+        },
+        "minProperties": 1,
+        "additionalProperties": False
+    }
+    
     def __init__(self, config_path: str = "config/responses.json"):
         """Initialize ConfigManager with path to configuration file."""
         self.config_path = config_path
-        self.config_data = None
-        self.logger = logging.getLogger(__name__)
+        self._config_data: Optional[Dict[str, Any]] = None
+        self._lock = threading.RLock()
+        self._file_mtime: Optional[float] = None
+        
+        # Pre-compile JSON schema validator for performance
+        try:
+            self._schema_validator = Draft7Validator(self.RESPONSE_SCHEMA)
+        except Exception as e:
+            raise ConfigurationError(f"Invalid schema definition: {e}")
     
-    def load_config(self) -> Dict[str, Any]:
+    def load_config(self, force_reload: bool = False) -> Dict[str, Any]:
         """
         Load and validate the emotion responses configuration.
         
+        Args:
+            force_reload: If True, reload even if already cached
+            
         Returns:
             Dict containing the loaded configuration data
             
         Raises:
-            FileNotFoundError: If config file doesn't exist
-            ValueError: If config data is invalid
-            json.JSONDecodeError: If config file is not valid JSON
+            ConfigurationError: If config file doesn't exist or is invalid
         """
+        with self._lock:
+            # Check if we need to reload
+            if not force_reload and self._config_data is not None:
+                try:
+                    current_mtime = os.path.getmtime(self.config_path)
+                    if self._file_mtime is not None and current_mtime <= self._file_mtime:
+                        logger.debug("Using cached configuration")
+                        return self._config_data
+                except OSError:
+                    # File might have been deleted, proceed with reload
+                    pass
+            
+            # Load configuration
+            try:
+                self._load_and_validate()
+                logger.info(f"Successfully loaded configuration from {self.config_path}")
+                return self._config_data
+            except Exception as e:
+                if isinstance(e, ConfigurationError):
+                    raise
+                raise ConfigurationError(f"Failed to load configuration: {e}")
+    
+    def _load_and_validate(self) -> None:
+        """Load and validate configuration file."""
+        # Check file exists
         if not os.path.exists(self.config_path):
-            raise FileNotFoundError(f"Configuration file not found: {self.config_path}")
+            raise ConfigurationError(f"Configuration file not found: {self.config_path}")
         
+        # Load JSON
         try:
             with open(self.config_path, 'r', encoding='utf-8') as file:
-                self.config_data = json.load(file)
+                config_data = json.load(file)
         except json.JSONDecodeError as e:
-            raise json.JSONDecodeError(f"Invalid JSON in config file: {e}", e.doc, e.pos)
+            raise ConfigurationError(f"Invalid JSON in config file: {e}")
+        except OSError as e:
+            raise ConfigurationError(f"Error reading config file: {e}")
         
-        # Validate the loaded configuration
-        self._validate_config()
+        # Validate against schema
+        try:
+            self._schema_validator.validate(config_data)
+        except jsonschema.ValidationError as e:
+            error_path = ".".join(str(x) for x in e.absolute_path) if e.absolute_path else "root"
+            raise ConfigurationError(
+                f"Configuration validation failed at '{error_path}': {e.message}"
+            )
+        except jsonschema.SchemaError as e:
+            raise ConfigurationError(f"Schema error: {e.message}")
         
-        self.logger.info(f"Successfully loaded configuration from {self.config_path}")
-        return self.config_data
+        # Additional business logic validation
+        self._validate_business_rules(config_data)
+        
+        # Cache the validated data
+        self._config_data = config_data
+        self._file_mtime = os.path.getmtime(self.config_path)
     
-    def _validate_config(self) -> None:
-        """
-        Validate the structure and content of the configuration data.
+    def _validate_business_rules(self, config_data: Dict[str, Any]) -> None:
+        """Validate business-specific rules beyond JSON schema."""
+        # Ensure we have at least one emotion
+        if not config_data:
+            raise ConfigurationError("Configuration must contain at least one emotion")
         
-        Raises:
-            ValueError: If configuration structure is invalid
-        """
-        if not isinstance(self.config_data, dict):
-            raise ValueError("Configuration must be a dictionary")
+        # Validate emotion names are reasonable
+        for emotion in config_data.keys():
+            if not emotion.strip():
+                raise ConfigurationError("Emotion names cannot be empty or whitespace")
+            if len(emotion) > 50:
+                raise ConfigurationError(f"Emotion name '{emotion}' is too long (max 50 characters)")
         
-        if not self.config_data:
-            raise ValueError("Configuration cannot be empty")
-        
-        for emotion, responses in self.config_data.items():
-            if not isinstance(emotion, str):
-                raise ValueError(f"Emotion key must be string, got {type(emotion)}")
-            
-            if not isinstance(responses, list):
-                raise ValueError(f"Emotion '{emotion}' must have a list of responses")
-            
+        # Validate each emotion has valid responses
+        for emotion, responses in config_data.items():
             if not responses:
-                raise ValueError(f"Emotion '{emotion}' must have at least one response")
+                raise ConfigurationError(f"Emotion '{emotion}' must have at least one response")
             
             for i, response in enumerate(responses):
-                self._validate_response(emotion, i, response)
+                # Check figure names are not generic
+                figure = response.get('figure', '').strip()
+                if figure.lower() in ['unknown', 'anonymous', 'n/a', 'none']:
+                    raise ConfigurationError(
+                        f"Response {i} for emotion '{emotion}': figure name '{figure}' is not allowed"
+                    )
     
-    def _validate_response(self, emotion: str, index: int, response: Dict[str, Any]) -> None:
+    def reload_config(self) -> Dict[str, Any]:
         """
-        Validate a single emotion response entry.
+        Force reload configuration from disk.
         
-        Args:
-            emotion: The emotion name
-            index: Index of the response in the list
-            response: The response dictionary to validate
+        Returns:
+            Dict containing the reloaded configuration data
             
         Raises:
-            ValueError: If response structure is invalid
+            ConfigurationError: If reload fails
         """
-        if not isinstance(response, dict):
-            raise ValueError(f"Response {index} for emotion '{emotion}' must be a dictionary")
-        
-        required_fields = ['figure', 'context_lines', 'quote', 'encouragement_lines']
-        for field in required_fields:
-            if field not in response:
-                raise ValueError(f"Response {index} for emotion '{emotion}' missing required field: {field}")
-        
-        # Validate figure
-        if not isinstance(response['figure'], str) or not response['figure'].strip():
-            raise ValueError(f"Response {index} for emotion '{emotion}': 'figure' must be a non-empty string")
-        
-        # Validate quote
-        if not isinstance(response['quote'], str) or not response['quote'].strip():
-            raise ValueError(f"Response {index} for emotion '{emotion}': 'quote' must be a non-empty string")
-        
-        # Validate context_lines
-        if not isinstance(response['context_lines'], list) or not response['context_lines']:
-            raise ValueError(f"Response {index} for emotion '{emotion}': 'context_lines' must be a non-empty list")
-        
-        for line in response['context_lines']:
-            if not isinstance(line, str) or not line.strip():
-                raise ValueError(f"Response {index} for emotion '{emotion}': all context lines must be non-empty strings")
-        
-        # Validate encouragement_lines
-        if not isinstance(response['encouragement_lines'], list) or not response['encouragement_lines']:
-            raise ValueError(f"Response {index} for emotion '{emotion}': 'encouragement_lines' must be a non-empty list")
-        
-        for line in response['encouragement_lines']:
-            if not isinstance(line, str) or not line.strip():
-                raise ValueError(f"Response {index} for emotion '{emotion}': all encouragement lines must be non-empty strings")
+        logger.info("Force reloading configuration")
+        return self.load_config(force_reload=True)
+    
+    def is_config_loaded(self) -> bool:
+        """Check if configuration is currently loaded."""
+        with self._lock:
+            return self._config_data is not None
+    
+    def get_config_file_mtime(self) -> Optional[float]:
+        """Get the modification time of the loaded config file."""
+        with self._lock:
+            return self._file_mtime
     
     def get_emotions(self) -> List[str]:
         """
@@ -125,12 +211,13 @@ class ConfigManager:
             List of emotion names
             
         Raises:
-            RuntimeError: If configuration not loaded
+            ConfigurationError: If configuration not loaded
         """
-        if self.config_data is None:
-            raise RuntimeError("Configuration not loaded. Call load_config() first.")
-        
-        return list(self.config_data.keys())
+        with self._lock:
+            if self._config_data is None:
+                raise ConfigurationError("Configuration not loaded. Call load_config() first.")
+            
+            return list(self._config_data.keys())
     
     def get_response(self, emotion: str) -> Optional[Dict[str, Any]]:
         """
@@ -143,17 +230,37 @@ class ConfigManager:
             Dictionary containing response data, or None if emotion not found
             
         Raises:
-            RuntimeError: If configuration not loaded
+            ConfigurationError: If configuration not loaded
         """
-        if self.config_data is None:
-            raise RuntimeError("Configuration not loaded. Call load_config() first.")
+        with self._lock:
+            if self._config_data is None:
+                raise ConfigurationError("Configuration not loaded. Call load_config() first.")
+            
+            if emotion not in self._config_data:
+                return None
+            
+            # For now, return the first response. Later steps will add randomization.
+            responses = self._config_data[emotion]
+            return responses[0] if responses else None
+    
+    def get_all_responses(self, emotion: str) -> List[Dict[str, Any]]:
+        """
+        Get all response configurations for the specified emotion.
         
-        if emotion not in self.config_data:
-            return None
-        
-        # For now, return the first response. Later steps will add randomization.
-        responses = self.config_data[emotion]
-        return responses[0] if responses else None
+        Args:
+            emotion: The emotion to get responses for
+            
+        Returns:
+            List of response dictionaries, empty list if emotion not found
+            
+        Raises:
+            ConfigurationError: If configuration not loaded
+        """
+        with self._lock:
+            if self._config_data is None:
+                raise ConfigurationError("Configuration not loaded. Call load_config() first.")
+            
+            return self._config_data.get(emotion, [])
     
     def is_emotion_supported(self, emotion: str) -> bool:
         """
@@ -166,9 +273,40 @@ class ConfigManager:
             True if emotion is supported, False otherwise
             
         Raises:
-            RuntimeError: If configuration not loaded
+            ConfigurationError: If configuration not loaded
         """
-        if self.config_data is None:
-            raise RuntimeError("Configuration not loaded. Call load_config() first.")
+        with self._lock:
+            if self._config_data is None:
+                raise ConfigurationError("Configuration not loaded. Call load_config() first.")
+            
+            return emotion in self._config_data
+    
+    def validate_config_file(self, config_path: Optional[str] = None) -> bool:
+        """
+        Validate a configuration file without loading it into this manager.
         
-        return emotion in self.config_data 
+        Args:
+            config_path: Path to config file, uses self.config_path if None
+            
+        Returns:
+            True if valid, False otherwise
+        """
+        path = config_path or self.config_path
+        
+        try:
+            if not os.path.exists(path):
+                logger.error(f"Config file not found: {path}")
+                return False
+            
+            with open(path, 'r', encoding='utf-8') as file:
+                config_data = json.load(file)
+            
+            self._schema_validator.validate(config_data)
+            self._validate_business_rules(config_data)
+            
+            logger.info(f"Configuration file {path} is valid")
+            return True
+            
+        except Exception as e:
+            logger.error(f"Configuration validation failed for {path}: {e}")
+            return False 
