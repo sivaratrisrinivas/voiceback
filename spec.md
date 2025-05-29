@@ -1,7 +1,7 @@
-# Historical Echo - Developer Specification
+# Voiceback - Developer Specification
 
 ## Project Summary
-Historical Echo is a voice-powered agent that delivers timeless wisdom in under 30 seconds. Users call in, share how they feel, and receive comfort or perspective from the great thinkers of history—instantly. Built for a 2-day public competition using Vapi's voice agent platform.
+Voiceback is a voice-powered agent that delivers timeless wisdom in under 30 seconds. Users call in, share how they feel, and receive comfort or perspective from the great thinkers of history—instantly. Built for a 2-day public competition using Vapi's voice agent platform.
 
 ## Core Requirements
 
@@ -14,7 +14,7 @@ Historical Echo is a voice-powered agent that delivers timeless wisdom in under 
 - **Availability**: Public phone number for competition demonstration
 
 ### **User Experience Flow**
-1. **Greeting**: "Welcome to Historical Echo, where voices from the past bring comfort to the present. In a few words, please share how you're feeling right now."
+1. **Greeting**: "Welcome to Voiceback, where voices from the past bring comfort to the present. In a few words, please share how you're feeling right now."
 2. **Input Processing**: Accept both single words and full sentences
 3. **Emotion Detection**: Map user input to predefined emotions
 4. **Response Delivery**: Acknowledge emotion → introduce historical figure → brief pause → deliver quote → emotion-specific encouragement
@@ -99,15 +99,15 @@ def handle_error(error_type):
     if error_type == "transcription_failure":
         return "I didn't catch that. Could you share how you're feeling in a word or two?"
     elif error_type == "system_error":
-        return "Sorry, something went wrong on our end. Please try calling Historical Echo again in a few minutes. Goodbye."
+        return "Sorry, something went wrong on our end. Please try calling Voiceback again in a few minutes. Goodbye."
     elif error_type == "timeout":
-        return "It seems now may not be the right moment. Thank you for calling Historical Echo. Goodbye."
+        return "It seems now may not be the right moment. Thank you for calling Voiceback. Goodbye."
 ```
 
 ### **Crisis Response Protocol**
 ```python
 CRISIS_KEYWORDS = ["suicide", "kill myself", "end it all", "hurt myself", "no point"]
-CRISIS_RESPONSE = "I'm truly sorry you're feeling this way. Historical Echo is not equipped to help with urgent emotional crises, but you're not alone. Please consider reaching out to a professional or calling a helpline such as 988 in the US or 9152987821 in India."
+CRISIS_RESPONSE = "I'm truly sorry you're feeling this way. Voiceback is not equipped to help with urgent emotional crises, but you're not alone. Please consider reaching out to a professional or calling a helpline such as 988 in the US or 9152987821 in India."
 ```
 
 ## Data Handling
@@ -223,7 +223,7 @@ historical-echo/
 ### **Sample Dialogue Examples**
 ```
 User: "I'm anxious about my job interview tomorrow"
-Historical Echo: "It sounds like you're feeling anxious. Many have walked this path before you. You remind me of Seneca, the Stoic philosopher who wrote about facing anxiety with courage. 'We suffer more often in imagination than in reality.' You have the strength to face what lies ahead. Thank you for calling Historical Echo. Please remember, this service offers inspiration, not professional advice. Goodbye."
+Voiceback: "It sounds like you're feeling anxious. Many have walked this path before you. You remind me of Seneca, the Stoic philosopher who wrote about facing anxiety with courage. 'We suffer more often in imagination than in reality.' You have the strength to face what lies ahead. Thank you for calling Voiceback. Please remember, this service offers inspiration, not professional advice. Goodbye."
 ```
 
 ## Success Metrics

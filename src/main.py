@@ -1,15 +1,17 @@
 #!/usr/bin/env python3
 """
-Historical Echo - Main Entry Point
+Voiceback - Main Entry Point
 
-A voice agent that delivers timeless wisdom from historical figures
-based on user emotions. Built for Vapi platform integration.
+Flask webhook server that handles Vapi voice agent calls and delivers
+historical wisdom based on user emotions.
 """
 
 import os
-import sys
 import signal
+import sys
 import threading
+import time
+from typing import Optional
 from pathlib import Path
 
 # Add src directory to Python path
@@ -30,9 +32,9 @@ load_dotenv()
 
 # Global variables for app components
 app = Flask(__name__)
-call_handler = None
-vapi_client = None
-server_thread = None
+call_handler: Optional[CallHandler] = None
+vapi_client: Optional[VapiClient] = None
+server_thread: Optional[threading.Thread] = None
 flask_server = None  # Reference to the Werkzeug server
 shutdown_event = threading.Event()  # Event to signal shutdown
 
@@ -98,53 +100,62 @@ def check_vapi_connectivity():
         return False
 
 
-@app.route('/webhook/vapi', methods=['POST'])
-def vapi_webhook():
-    """Handle incoming webhooks from Vapi."""
-    global call_handler
-    
-    if not call_handler:
-        logger.error("CallHandler not initialized")
-        return jsonify({"error": "Server not ready"}), 500
-    
+@app.route('/webhook', methods=['POST'])
+def webhook():
+    """Handle Vapi webhook calls."""
     try:
-        # Get webhook data
-        webhook_data = request.get_json()
+        data = request.get_json()
         
-        if not webhook_data:
-            logger.warning("Received webhook with no JSON data")
-            return jsonify({"error": "No JSON data"}), 400
+        if not data:
+            logger.error("No JSON data received in webhook")
+            return jsonify({"error": "No JSON data provided"}), 400
         
-        logger.info(f"Received webhook: {webhook_data.get('type', 'unknown')}")
+        logger.info(f"Received webhook: {data.get('type', 'unknown')}")
         
-        # Process webhook through call handler
-        response = call_handler.handle_webhook(webhook_data)
+        # Process the webhook through call handler
+        response = call_handler.handle_webhook(data)
         
-        return jsonify(response)
-        
+        if response:
+            return jsonify(response)
+        else:
+            return jsonify({"message": "Webhook processed successfully"}), 200
+            
     except Exception as e:
         logger.error(f"Error processing webhook: {str(e)}")
-        return jsonify({"error": "Webhook processing failed"}), 500
+        return jsonify({"error": "Internal server error"}), 500
 
 
 @app.route('/health', methods=['GET'])
-def health_endpoint():
-    """Health check endpoint for the webhook server."""
-    return jsonify({
-        "status": "healthy",
-        "service": "Historical Echo Webhook Server",
-        "active_calls": len(call_handler.get_active_calls()) if call_handler else 0
-    })
-
-
-@app.route('/', methods=['GET'])
-def root():
-    """Root endpoint."""
-    return jsonify({
-        "service": "Historical Echo Voice Agent",
-        "status": "running",
-        "webhook_endpoint": "/webhook/vapi"
-    })
+def health_check():
+    """Health check endpoint."""
+    try:
+        # Perform basic health checks
+        health_status = {
+            "status": "healthy",
+            "service": "Voiceback Webhook Server",
+            "version": "1.0.0",
+            "timestamp": time.time()
+        }
+        
+        # Check Vapi client health if available
+        if vapi_client:
+            try:
+                vapi_health = vapi_client.health_check()
+                health_status["vapi_status"] = "connected" if vapi_health else "disconnected"
+            except Exception as e:
+                health_status["vapi_status"] = f"error: {str(e)}"
+        
+        health_status["service"] = "Voiceback Voice Agent"
+        
+        return jsonify(health_status), 200
+        
+    except Exception as e:
+        logger.error(f"Health check failed: {str(e)}")
+        return jsonify({
+            "status": "unhealthy",
+            "error": str(e),
+            "timestamp": time.time()
+        }), 500
 
 
 def setup_webhook_server():
@@ -244,7 +255,7 @@ def main():
     # Setup
     setup_logging()
     
-    logger.info("Starting Historical Echo Voice Agent")
+    logger.info("Starting Voiceback Voice Agent")
     
     # Health check
     if not health_check():
@@ -259,7 +270,7 @@ def main():
     setup_webhook_server()
     start_webhook_server()
     
-    logger.info("Historical Echo initialized successfully")
+    logger.info("Voiceback initialized successfully")
     logger.info("Webhook server ready to receive calls")
     logger.info("Press Ctrl+C to stop the service")
     

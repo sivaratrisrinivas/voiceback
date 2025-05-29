@@ -1,4 +1,4 @@
-# Historical Echo - Development Checklist
+# Voiceback - Development Checklist
 
 ## Project Status: Step 5 Complete - Configuration System Foundation
 

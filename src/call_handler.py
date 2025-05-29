@@ -2,7 +2,7 @@
 Call Handler - Vapi Webhook Processing
 
 This module handles incoming call webhooks from Vapi and manages call lifecycle
-for the Historical Echo voice agent.
+for the Voiceback voice agent.
 """
 
 from typing import Dict, Any, Optional
@@ -104,7 +104,7 @@ class CallHandler:
 
             # Return assistant configuration that will speak the greeting and
             # then end the call
-            greeting = ("Welcome to Historical Echo. Thank you for calling. "
+            greeting = ("Welcome to Voiceback. Thank you for calling. "
                         "Goodbye.")
             return self.send_voice_message(call_id, greeting)
 
@@ -130,7 +130,7 @@ class CallHandler:
             logger.info(f"Call started: {call_id} from {from_number}")
 
             # For Step 4: Deliver greeting instead of immediately hanging up
-            greeting = ("Welcome to Historical Echo. Thank you for calling. "
+            greeting = ("Welcome to Voiceback. Thank you for calling. "
                         "Goodbye.")
             return self.send_voice_message(call_id, greeting)
 
@@ -176,57 +176,82 @@ class CallHandler:
         logger.info(f"Speech ended on call: {call_id}")
         return {"status": "received"}
 
-    def send_voice_message(self, call_id: str, message: str) -> Dict[str, Any]:
+    def send_voice_message(self, call_id: str, message: str = None) -> Dict[str, Any]:
         """
-        Send a voice message to the caller using Vapi assistant configuration.
-
+        Send a voice message for the specified call using assistant configuration.
+        
         Args:
-            call_id: The ID of the call
-            message: The text message to speak
-
+            call_id: The call ID to send the message to
+            message: Optional message override. If not provided, uses default greeting.
+            
         Returns:
-            Dict containing assistant configuration for Vapi
+            Assistant configuration for voice delivery
         """
-        with self._lock:
-            if call_id not in self.active_calls:
-                logger.error(
-                    f"Cannot send voice message to unknown call: {call_id}")
-                return {"status": "error", "message": "Call not found"}
+        if message is None:
+            greeting = ("Welcome to Voiceback. Thank you for calling. "
+                      "Goodbye.")
+        else:
+            greeting = message
+        
+        try:
+            # Create assistant configuration for voice delivery
+            assistant_config = self.create_assistant_config(greeting)
+            
+            # Log voice delivery
+            logger.info(f"Voice message configured for call {call_id}: {greeting[:50]}...")
+            
+            return assistant_config
+            
+        except Exception as e:
+            logger.error(f"Failed to send voice message for call {call_id}: {str(e)}")
+            raise
 
-            logger.info(f"Sending voice message to call {call_id}: {message}")
-
-            # Return assistant configuration that will speak the message and
-            # then end the call
-            system_content = (
-                "You are a voice agent for Historical Echo. "
-                "After delivering your first message, immediately "
-                "end the call by saying nothing more.")
-
-            return {
-                "assistant": {
-                    "firstMessage": message,
-                    "model": {
-                        "provider": "openai",
-                        "model": "gpt-3.5-turbo",
-                        "messages": [
-                            {
-                                "role": "system",
-                                "content": system_content
-                            }
-                        ]
-                    },
-                    "voice": {
-                        "provider": "openai",
-                        "voiceId": "alloy"
-                    },
-                    # End call after 1 second of silence
-                    "endCallAfterSilenceMs": 1000,
-                    "transcriber": {
-                        "provider": "deepgram",
-                        "model": "nova-2"
-                    }
-                }
+    def create_assistant_config(self, message: str) -> Dict[str, Any]:
+        """
+        Create assistant configuration for voice delivery.
+        
+        Args:
+            message: The message to be delivered by the assistant
+            
+        Returns:
+            Assistant configuration dictionary
+        """
+        # Default greeting if no message provided
+        if not message:
+            message = ("Welcome to Voiceback. Thank you for calling. "
+                      "Goodbye.")
+        
+        # Create assistant configuration
+        assistant_config = {
+            "assistant": {
+                "firstMessage": message,
+                "model": {
+                    "provider": "openai",
+                    "model": "gpt-4o-mini",
+                    "messages": [
+                        {
+                            "role": "system",
+                            "content": (
+                                "You are a voice agent for Voiceback. "
+                                "Deliver the greeting message and end the call gracefully. "
+                                "Keep responses brief and professional."
+                            )
+                        }
+                    ]
+                },
+                "voice": {
+                    "provider": "openai",
+                    "voiceId": "alloy"
+                },
+                "endCallMessage": "Thank you for calling Voiceback. Goodbye.",
+                "endCallPhrases": ["goodbye", "thank you", "end call"],
+                "recordingEnabled": False,
+                "silenceTimeoutSeconds": 10,
+                "maxDurationSeconds": 30
             }
+        }
+        
+        return assistant_config
 
     def answer_call(self, call_id: str) -> Dict[str, Any]:
         """

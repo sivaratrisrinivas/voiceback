@@ -1,4 +1,4 @@
-# Historical Echo - Development Blueprint & Implementation Prompts
+# Voiceback - Development Blueprint & Implementation Prompts
 
 ## Development Blueprint Overview
 
@@ -23,7 +23,7 @@ This project will be built in 8 phases with 27 total steps, each designed to bui
 #### Step 1: Project Structure & Environment
 
 ```
-Create a Python project structure for "Historical Echo" voice agent using Vapi. Set up:
+Create a Python project structure for "Voiceback" voice agent using Vapi. Set up:
 
 1. Directory structure:
    - src/ (main application code)
@@ -109,7 +109,7 @@ Add voice response capability to deliver a simple greeting:
 
 1. Extend src/call_handler.py to include:
    - send_voice_message() method
-   - Basic greeting text: "Welcome to Historical Echo. Thank you for calling. Goodbye."
+   - Basic greeting text: "Welcome to Voiceback. Thank you for calling. Goodbye."
    - Proper call flow: answer → greeting → hangup
 
 2. Update src/vapi_client.py with:
@@ -653,7 +653,7 @@ Implement complete call termination with proper cleanup and user experience:
 
 3. Implement termination scenarios:
    - Successful completion: full response delivered
-   - Timeout termination: "seems now may not be the right moment"  
+   - Timeout termination: "It seems now may not be the right moment. Thank you for calling Voiceback."  
    - Error termination: "something went wrong on our end"
    - Crisis termination: supportive message with helpline information
 
@@ -697,7 +697,7 @@ Implement comprehensive error handling for reliable system operation:
 2. Define error types and responses:
    - TranscriptionError: "I didn't catch that. Could you share how you're feeling in a word or two?"
    - NetworkError: "Sorry, something went wrong on our end. Please try calling again in a few minutes."
-   - TimeoutError: "It seems now may not be the right moment. Thank you for calling Historical Echo."
+   - TimeoutError: "It seems now may not be the right moment. Thank you for calling Voiceback."
    - ConfigurationError: Graceful fallback to basic response
 
 3. Implement error recovery:
@@ -951,7 +951,7 @@ Integrate all components into a seamless, production-ready system:
    - Test error scenarios and recovery
    - Performance testing under load
 
-The system now operates as a cohesive, production-ready application with all components working together seamlessly.
+The system now operates as a cohesive, production-ready application with all components working together seamlessly to provide an excellent user experience for the Voiceback voice agent.
 ```
 
 #### Step 26: Testing Infrastructure & Validation
@@ -1051,7 +1051,7 @@ Complete the system with performance optimization and production readiness:
    - Complete user journey testing
    - Security and privacy validation
 
-The system is now production-ready with optimized performance, comprehensive monitoring, and all features working together to provide an excellent user experience for the Historical Echo voice agent.
+The system is now production-ready with optimized performance, comprehensive monitoring, and all features working together to provide an excellent user experience for the Voiceback voice agent.
 ```
 
 ---

@@ -1,5 +1,5 @@
 """
-Configuration manager for Historical Echo emotion responses.
+Configuration manager for Voiceback emotion responses.
 
 This module handles loading and validating the emotion-to-quote configuration
 from config/responses.json.

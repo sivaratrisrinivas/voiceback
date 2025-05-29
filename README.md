@@ -1,4 +1,4 @@
-# Historical Echo
+# Voiceback
 
 > **Call in, share how you feel, and receive instant comfort from history's greatest thinkers in under 30 seconds.**
 
@@ -6,11 +6,11 @@
 [![Tests](https://img.shields.io/badge/tests-90%20passing-green)](#testing)
 [![Development Status](https://img.shields.io/badge/status-Step%205%20Complete-brightgreen)](#development-progress)
 
-Historical Echo is a voice-powered agent that delivers timeless wisdom through phone calls. Users dial in, share their emotional state, and receive personalized quotes and encouragement from history's greatest philosophers and thinkers - all in under 30 seconds.
+Voiceback is a voice-powered agent that delivers timeless wisdom through phone calls. Users dial in, share their emotional state, and receive personalized quotes and encouragement from history's greatest philosophers and thinkers - all in under 30 seconds.
 
 ## 🎯 Project Overview
 
-Historical Echo bridges the gap between modern emotional needs and ancient wisdom. Built for a 2-day public competition using [Vapi's voice agent platform](https://vapi.ai), this system provides immediate emotional support through carefully curated historical quotes matched to the caller's feelings.
+Voiceback bridges the gap between modern emotional needs and ancient wisdom. Built for a 2-day public competition using [Vapi's voice agent platform](https://vapi.ai), this system provides immediate emotional support through carefully curated historical quotes matched to the caller's feelings.
 
 ### Key Features
 
@@ -41,11 +41,11 @@ Historical Echo bridges the gap between modern emotional needs and ancient wisdo
 
 ```
 Caller: "I'm really anxious about tomorrow"
-Historical Echo: "It sounds like you're feeling anxious. You remind me of 
+Voiceback: "It sounds like you're feeling anxious. You remind me of 
 Seneca, the Stoic philosopher who wrote about facing anxiety with courage. 
 [pause] 'We suffer more often in imagination than in reality.' 
 You have the strength to face what lies ahead. Thank you for calling 
-Historical Echo."
+Voiceback."
 ```
 
 ## 🛠️ Setup & Installation
@@ -235,8 +235,7 @@ python -m pytest --watch
 
 This project is released into the public domain. See the full license in [LICENSE.md](LICENSE.md).
 
----
-
-**Historical Echo** - *Where voices from the past bring comfort to the present.*
+**Voiceback** - *Where voices from the past bring comfort to the present.*
 
 For questions, issues, or contributions, please visit our [GitHub repository](https://github.com/sivaratrisrinivas/voiceback).
+

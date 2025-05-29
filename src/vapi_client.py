@@ -1,8 +1,8 @@
 """
-Vapi Client - HTTP API Integration
+Vapi API client for voice telephony integration.
 
-This module handles communication with the Vapi API for the Historical Echo voice agent.
-Focuses on server-side telephony functionality rather than client-side web calls.
+This module handles communication with the Vapi API for the Voiceback voice agent.
+It provides methods for making calls, managing assistants, and handling webhooks.
 """
 
 import os
@@ -23,10 +23,8 @@ class VapiAuthenticationError(Exception):
 
 class VapiClient:
     """
-    Client for interacting with Vapi's HTTP API.
-    
-    Handles API connectivity, authentication, and basic operations
-    for the Historical Echo telephony voice agent.
+    Vapi API client for managing voice calls and assistants
+    for the Voiceback telephony voice agent.
     """
     
     def __init__(self, api_key: Optional[str] = None):

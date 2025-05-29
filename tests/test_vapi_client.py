@@ -1,5 +1,5 @@
 """
-Test suite for Historical Echo Vapi Client.
+Test suite for Voiceback Vapi Client.
 
 This test file verifies the Vapi API integration functionality
 including connectivity, authentication, and error handling.

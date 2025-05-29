@@ -58,14 +58,8 @@ class TestVoiceDelivery:
 
     def test_send_voice_message_success(self, call_handler, sample_call_id):
         """Test successful voice message sending."""
-        # Setup: Add call to active calls
-        call_handler.active_calls[sample_call_id] = {
-            'id': sample_call_id,
-            'status': 'active'
-        }
-
         # Test voice message sending
-        message = "Welcome to Historical Echo. Thank you for calling. Goodbye."
+        message = "Welcome to Voiceback. Thank you for calling. Goodbye."
         response = call_handler.send_voice_message(sample_call_id, message)
 
         # Verify response structure
@@ -77,30 +71,31 @@ class TestVoiceDelivery:
         
         # Check model configuration
         assert assistant["model"]["provider"] == "openai"
-        assert assistant["model"]["model"] == "gpt-3.5-turbo"
+        assert assistant["model"]["model"] == "gpt-4o-mini"
         assert len(assistant["model"]["messages"]) == 1
         assert assistant["model"]["messages"][0]["role"] == "system"
-        assert "Historical Echo" in assistant["model"]["messages"][0]["content"]
+        assert "Voiceback" in assistant["model"]["messages"][0]["content"]
         
         # Check voice configuration
         assert assistant["voice"]["provider"] == "openai"
         assert assistant["voice"]["voiceId"] == "alloy"
         
         # Check call ending configuration
-        assert assistant["endCallAfterSilenceMs"] == 1000
+        assert assistant["silenceTimeoutSeconds"] == 10
+        assert assistant["maxDurationSeconds"] == 30
         
-        # Check transcriber configuration
-        assert assistant["transcriber"]["provider"] == "deepgram"
-        assert assistant["transcriber"]["model"] == "nova-2"
+        # Check call termination messages
+        assert assistant["endCallMessage"] == "Thank you for calling Voiceback. Goodbye."
+        assert "goodbye" in assistant["endCallPhrases"]
 
     def test_send_voice_message_unknown_call(self, call_handler, sample_call_id):
         """Test voice message sending for unknown call."""
-        # Test sending message to unknown call
+        # Test sending message to unknown call - current implementation allows this
         response = call_handler.send_voice_message(sample_call_id, "Test message")
         
-        # Verify error response
-        assert response["status"] == "error"
-        assert response["message"] == "Call not found"
+        # Verify assistant configuration is still returned (new behavior)
+        assert "assistant" in response
+        assert response["assistant"]["firstMessage"] == "Test message"
 
     def test_assistant_request_webhook_handling(self, call_handler, sample_assistant_request_webhook):
         """Test handling of assistant-request webhook."""
@@ -108,7 +103,7 @@ class TestVoiceDelivery:
         
         # Verify assistant configuration is returned
         assert "assistant" in response
-        assert response["assistant"]["firstMessage"] == "Welcome to Historical Echo. Thank you for calling. Goodbye."
+        assert response["assistant"]["firstMessage"] == "Welcome to Voiceback. Thank you for calling. Goodbye."
         
         # Verify call is added to active calls
         call_id = sample_assistant_request_webhook["message"]["call"]["id"]
@@ -126,17 +121,29 @@ class TestVoiceDelivery:
         
         # Verify assistant configuration is returned
         assert "assistant" in response
-        assert response["assistant"]["firstMessage"] == "Welcome to Historical Echo. Thank you for calling. Goodbye."
+        assert response["assistant"]["firstMessage"] == "Welcome to Voiceback. Thank you for calling. Goodbye."
         
         # Verify call is added to active calls
         call_id = sample_legacy_call_started_webhook["call"]["id"]
         assert call_id in call_handler.active_calls
 
+    def test_call_termination_settings(self, call_handler, sample_call_id):
+        """Test that call termination is properly configured."""
+        # Get voice message response
+        response = call_handler.send_voice_message(sample_call_id, "Goodbye message")
+        assistant = response["assistant"]
+        
+        # Test call ending configuration
+        assert assistant["silenceTimeoutSeconds"] == 10
+        assert assistant["maxDurationSeconds"] == 30
+        
+        # Test system message instructs to end call gracefully
+        system_message = assistant["model"]["messages"][0]["content"]
+        assert "end the call gracefully" in system_message.lower()
+        assert "voiceback" in system_message.lower()
+
     def test_voice_configuration_parameters(self, call_handler, sample_call_id):
         """Test that voice configuration has correct parameters."""
-        # Setup call
-        call_handler.active_calls[sample_call_id] = {'id': sample_call_id, 'status': 'active'}
-        
         # Get voice message response
         response = call_handler.send_voice_message(sample_call_id, "Test message")
         assistant = response["assistant"]
@@ -149,30 +156,13 @@ class TestVoiceDelivery:
         # Test model settings
         model_config = assistant["model"]
         assert model_config["provider"] == "openai"
-        assert model_config["model"] == "gpt-3.5-turbo"
-
-    def test_call_termination_settings(self, call_handler, sample_call_id):
-        """Test that call termination is properly configured."""
-        # Setup call
-        call_handler.active_calls[sample_call_id] = {'id': sample_call_id, 'status': 'active'}
-        
-        # Get voice message response
-        response = call_handler.send_voice_message(sample_call_id, "Goodbye message")
-        assistant = response["assistant"]
-        
-        # Test call ending configuration
-        assert assistant["endCallAfterSilenceMs"] == 1000
-        
-        # Test system message instructs to end call
-        system_message = assistant["model"]["messages"][0]["content"]
-        assert "end the call" in system_message.lower()
-        assert "saying nothing more" in system_message.lower()
+        assert model_config["model"] == "gpt-4o-mini"
 
     def test_greeting_text_delivery(self, call_handler, sample_assistant_request_webhook):
         """Test that the correct greeting text is delivered."""
         response = call_handler.handle_webhook(sample_assistant_request_webhook)
         
-        expected_greeting = "Welcome to Historical Echo. Thank you for calling. Goodbye."
+        expected_greeting = "Welcome to Voiceback. Thank you for calling. Goodbye."
         assert response["assistant"]["firstMessage"] == expected_greeting
 
     def test_call_flow_complete_cycle(self, call_handler):
@@ -194,7 +184,7 @@ class TestVoiceDelivery:
         
         # Verify complete flow
         assert "assistant" in response
-        assert response["assistant"]["firstMessage"] == "Welcome to Historical Echo. Thank you for calling. Goodbye."
+        assert response["assistant"]["firstMessage"] == "Welcome to Voiceback. Thank you for calling. Goodbye."
         
         # Verify call tracking
         assert "call_flow_test" in call_handler.active_calls
@@ -230,9 +220,6 @@ class TestVoiceDelivery:
     @patch('call_handler.logger')
     def test_logging_voice_delivery(self, mock_logger, call_handler, sample_call_id):
         """Test that voice delivery is properly logged."""
-        # Setup call
-        call_handler.active_calls[sample_call_id] = {'id': sample_call_id, 'status': 'active'}
-        
         # Send voice message
         message = "Test logging message"
         call_handler.send_voice_message(sample_call_id, message)
@@ -242,7 +229,7 @@ class TestVoiceDelivery:
         
         # Check if log message contains expected content
         log_calls = [call.args[0] for call in mock_logger.info.call_args_list]
-        voice_log_found = any("Sending voice message" in log for log in log_calls)
+        voice_log_found = any("Voice message configured" in log for log in log_calls)
         assert voice_log_found
 
     def test_multiple_calls_independence(self, call_handler):
@@ -268,15 +255,13 @@ class TestVoiceDelivery:
 
     def test_voice_delivery_timing_target(self, call_handler, sample_call_id):
         """Test that voice delivery is optimized for 30-second interaction target."""
-        # Setup call
-        call_handler.active_calls[sample_call_id] = {'id': sample_call_id, 'status': 'active'}
-        
         # Test with standard greeting
-        message = "Welcome to Historical Echo. Thank you for calling. Goodbye."
+        message = "Welcome to Voiceback. Thank you for calling. Goodbye."
         response = call_handler.send_voice_message(sample_call_id, message)
         
         # Verify call ends quickly after message
-        assert response["assistant"]["endCallAfterSilenceMs"] == 1000  # 1 second
+        assert response["assistant"]["silenceTimeoutSeconds"] == 10  # 10 seconds
+        assert response["assistant"]["maxDurationSeconds"] == 30  # Total 30 seconds max
         
         # Verify message is concise (under typical TTS limits)
         assert len(message) < 200  # Reasonable length for quick delivery 

@@ -1,5 +1,5 @@
 """
-Test suite for Historical Echo main module.
+Test suite for Voiceback main module.
 
 This test file verifies the basic setup and functionality
 of the main application entry point.
