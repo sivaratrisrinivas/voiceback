@@ -1,0 +1,29 @@
+# Historical Echo - Voice Agent Dependencies
+# Core dependencies for Vapi integration and application functionality
+
+# Vapi integration (using requests for HTTP API calls)
+ requests>=2.32.2
+
+# Environment management
+python-dotenv>=1.0.0
+
+# Testing framework
+pytest>=7.4.0
+pytest-mock>=3.11.1
+
+# Logging
+loguru>=0.7.2
+
+# HTTP server for webhooks
+flask>=2.3.3
+gunicorn>=21.2.0
+
+# JSON handling and validation
+pydantic>=2.4.0
+
+# Async support
+aiohttp>=3.8.6
+
+# Development dependencies
+black>=23.9.1
+flake8>=6.1.0 
