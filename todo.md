@@ -22,20 +22,22 @@
 ### Environment Configuration
 - [x] Set up Vapi API account and get API key
 - [x] Configure Vapi phone number for US/Canada
-- [ ] Set up webhook URL for call handling
-- [x] Test Vapi API connectivity
+- [x] Set up webhook URL for call handling
+- [x] Test Vapi API connectivity (corrected endpoint from /account to /phone-number)
 - [x] Configure environment variables:
   - [x] `VAPI_API_KEY`
   - [x] `PHONE_NUMBER`
   - [x] `LOG_LEVEL`
   - [x] `ENVIRONMENT`
+  - [x] `WEBHOOK_HOST`
+  - [x] `WEBHOOK_PORT`
 
 ## Core Application Files
 
 ### Main Application Structure
 - [x] Create `src/main.py` - Entry point and webhook server
-- [x] Create `src/vapi_client.py` - Vapi API integration
-- [ ] Create `src/call_handler.py` - Call lifecycle management
+- [x] Create `src/vapi_client.py` - Vapi API integration (with corrected health check)
+- [x] Create `src/call_handler.py` - Call lifecycle management (Step 3 complete)
 - [ ] Create `src/call_flow_manager.py` - State machine for call flow
 - [ ] Create `src/call_state.py` - Call state tracking
 - [ ] Create `src/historical_echo.py` - Main application orchestrator
@@ -113,15 +115,15 @@
 
 ## Core Functionality Implementation
 
-### Call Flow Management
-- [ ] Implement call state machine:
-  - [ ] CONNECTING state
-  - [ ] GREETING state
-  - [ ] LISTENING state
-  - [ ] PROCESSING state
-  - [ ] RESPONDING state
-  - [ ] ENDING state
-  - [ ] ERROR state
+### Call Flow Management (Step 3 Complete)
+- [x] Implement basic call handling infrastructure:
+  - [x] Answer incoming calls
+  - [x] Log call events (start, end)
+  - [x] Basic call control (immediate hangup for Step 3)
+  - [x] Webhook processing for call.started, call.ended, speech events
+  - [x] Call state tracking and management
+  - [x] Flask webhook server with proper endpoints
+  - [x] Integration with VapiClient for call control
 - [ ] Add state transition validation
 - [ ] Implement timeout handling (7 seconds + retry)
 - [ ] Add call cleanup procedures
@@ -151,10 +153,10 @@
 
 ## Testing Suite
 
-### Unit Tests
+### Unit Tests (Step 3 Complete)
 - [x] `tests/test_main.py` - Basic setup verification
-- [x] `tests/test_vapi_client.py` - API connectivity tests
-- [ ] `tests/test_call_handler.py` - Call lifecycle tests
+- [x] `tests/test_vapi_client.py` - API connectivity tests (updated for correct endpoint)
+- [x] `tests/test_call_handler.py` - Call lifecycle tests (comprehensive 18 tests)
 - [ ] `tests/test_call_flow_manager.py` - State machine tests
 - [ ] `tests/test_call_state.py` - State management tests
 - [ ] `tests/test_text_processor.py` - Text processing tests
@@ -167,6 +169,7 @@
 - [ ] `tests/test_logging_manager.py` - Logging tests
 
 ### Integration Tests
+- [x] CallHandler integration tests (multiple concurrent calls, complete lifecycle)
 - [ ] `tests/test_integration.py` - End-to-end call flow
 - [ ] Test emotion detection → response selection flow
 - [ ] Test voice delivery with timing
@@ -176,6 +179,8 @@
 
 ### Test Data & Fixtures
 - [x] Create mock Vapi API responses
+- [x] Create mock webhook calls for testing
+- [x] VapiClient method tests (register_webhook_endpoint, create_assistant, end_call, get_call_status)
 - [ ] Create test emotion inputs
 - [ ] Create expected response validation data
 - [ ] Set up test configuration files
@@ -183,6 +188,9 @@
 
 ### Manual Testing Procedures
 - [x] Test call connection
+- [x] Test webhook server setup
+- [x] Test VapiClient health check with real API
+- [x] Manual webhook testing script (test_webhook_manual.py)
 - [ ] Test greeting delivery
 - [ ] Test various emotion inputs
 - [ ] Test quote delivery timing

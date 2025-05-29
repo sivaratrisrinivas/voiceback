@@ -69,11 +69,12 @@ class VapiClient:
         try:
             logger.info("Performing Vapi API health check...")
             
-            response = self.session.get(f"{self.base_url}/account", timeout=10)
+            # Use /phone-number endpoint since /account doesn't exist in Vapi API
+            response = self.session.get(f"{self.base_url}/phone-number", timeout=10)
             
             if response.status_code == 200:
-                account_info = response.json()
-                logger.info(f"Vapi API health check passed - connected to account: {account_info.get('name', 'Unknown')}")
+                phone_numbers = response.json()
+                logger.info(f"Vapi API health check passed - found {len(phone_numbers)} phone numbers")
                 return True
             elif response.status_code == 401:
                 logger.error("Vapi API authentication failed - invalid API key")
@@ -82,7 +83,7 @@ class VapiClient:
                 logger.error("Vapi API access forbidden - check API key permissions")
                 raise VapiAuthenticationError("API key lacks required permissions")
             elif response.status_code == 404:
-                logger.warning("Account endpoint not found - API is reachable but endpoint may not exist")
+                logger.warning("Phone number endpoint not found - API is reachable but endpoint may not exist")
                 return False
             elif response.status_code >= 500:
                 logger.error(f"Vapi API server error: {response.status_code}")
@@ -104,17 +105,19 @@ class VapiClient:
     def get_account_info(self) -> Dict[str, Any]:
         """
         Get account information from Vapi API.
+        Since /account endpoint doesn't exist in Vapi API, this returns phone number info.
         
         Returns:
-            Dict containing account information.
+            Dict containing account information (phone numbers).
             
         Raises:
             VapiConnectionError: If the request fails
         """
         try:
-            response = self.session.get(f"{self.base_url}/account", timeout=10)
+            response = self.session.get(f"{self.base_url}/phone-number", timeout=10)
             response.raise_for_status()
-            return response.json()
+            phone_numbers = response.json()
+            return {"phone_numbers": phone_numbers, "count": len(phone_numbers)}
         except requests.exceptions.RequestException as e:
             logger.error(f"Failed to get account info: {str(e)}")
             raise VapiConnectionError(f"Failed to get account info: {str(e)}")
@@ -137,6 +140,117 @@ class VapiClient:
             logger.error(f"Failed to get phone numbers: {str(e)}")
             raise VapiConnectionError(f"Failed to get phone numbers: {str(e)}")
     
+    def register_webhook_endpoint(self, phone_number_id: str, webhook_url: str) -> Dict[str, Any]:
+        """
+        Register a webhook endpoint for a phone number.
+        
+        Args:
+            phone_number_id: The ID of the phone number to configure
+            webhook_url: The URL to receive webhooks
+            
+        Returns:
+            Dict containing the updated phone number configuration
+            
+        Raises:
+            VapiConnectionError: If the request fails
+        """
+        try:
+            payload = {
+                "serverUrl": webhook_url
+            }
+            
+            response = self.session.patch(
+                f"{self.base_url}/phone-number/{phone_number_id}", 
+                json=payload,
+                timeout=10
+            )
+            response.raise_for_status()
+            
+            logger.info(f"Webhook endpoint registered: {webhook_url} for phone number {phone_number_id}")
+            return response.json()
+            
+        except requests.exceptions.RequestException as e:
+            logger.error(f"Failed to register webhook endpoint: {str(e)}")
+            raise VapiConnectionError(f"Failed to register webhook endpoint: {str(e)}")
+    
+    def create_assistant(self, assistant_config: Dict[str, Any]) -> Dict[str, Any]:
+        """
+        Create a new assistant configuration.
+        
+        Args:
+            assistant_config: The assistant configuration
+            
+        Returns:
+            Dict containing the created assistant
+            
+        Raises:
+            VapiConnectionError: If the request fails
+        """
+        try:
+            response = self.session.post(
+                f"{self.base_url}/assistant",
+                json=assistant_config,
+                timeout=10
+            )
+            response.raise_for_status()
+            
+            assistant = response.json()
+            logger.info(f"Assistant created: {assistant.get('id')}")
+            return assistant
+            
+        except requests.exceptions.RequestException as e:
+            logger.error(f"Failed to create assistant: {str(e)}")
+            raise VapiConnectionError(f"Failed to create assistant: {str(e)}")
+    
+    def end_call(self, call_id: str) -> Dict[str, Any]:
+        """
+        End an active call.
+        
+        Args:
+            call_id: The ID of the call to end
+            
+        Returns:
+            Dict containing the call status
+            
+        Raises:
+            VapiConnectionError: If the request fails
+        """
+        try:
+            response = self.session.patch(
+                f"{self.base_url}/call/{call_id}",
+                json={"status": "ended"},
+                timeout=10
+            )
+            response.raise_for_status()
+            
+            logger.info(f"Call ended via API: {call_id}")
+            return response.json()
+            
+        except requests.exceptions.RequestException as e:
+            logger.error(f"Failed to end call: {str(e)}")
+            raise VapiConnectionError(f"Failed to end call: {str(e)}")
+    
+    def get_call_status(self, call_id: str) -> Dict[str, Any]:
+        """
+        Get the status of a specific call.
+        
+        Args:
+            call_id: The ID of the call to check
+            
+        Returns:
+            Dict containing call status information
+            
+        Raises:
+            VapiConnectionError: If the request fails
+        """
+        try:
+            response = self.session.get(f"{self.base_url}/call/{call_id}", timeout=10)
+            response.raise_for_status()
+            return response.json()
+        except requests.exceptions.RequestException as e:
+            logger.error(f"Failed to get call status: {str(e)}")
+            raise VapiConnectionError(f"Failed to get call status: {str(e)}")
+
     def close(self):
         """Close the HTTP session."""
         if self.session:

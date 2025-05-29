@@ -50,14 +50,14 @@ class TestVapiClient:
         # Mock successful API response
         mock_response = Mock()
         mock_response.status_code = 200
-        mock_response.json.return_value = {"name": "Test Account", "id": "test_id"}
+        mock_response.json.return_value = [{"id": "phone1", "number": "+1234567890"}]
         mock_get.return_value = mock_response
         
         client = VapiClient(api_key="test_key")
         result = client.health_check()
         
         assert result is True
-        mock_get.assert_called_once_with("https://api.vapi.ai/account", timeout=10)
+        mock_get.assert_called_once_with("https://api.vapi.ai/phone-number", timeout=10)
     
     @patch('vapi_client.requests.Session.get')
     def test_health_check_authentication_error_401(self, mock_get):
@@ -136,15 +136,15 @@ class TestVapiClient:
         """Test successful account info retrieval."""
         mock_response = Mock()
         mock_response.status_code = 200
-        mock_response.json.return_value = {"name": "Test Account", "id": "test_id"}
+        mock_response.json.return_value = [{"id": "phone1", "number": "+1234567890"}]
         mock_response.raise_for_status.return_value = None
         mock_get.return_value = mock_response
         
         client = VapiClient(api_key="test_key")
         result = client.get_account_info()
         
-        assert result == {"name": "Test Account", "id": "test_id"}
-        mock_get.assert_called_once_with("https://api.vapi.ai/account", timeout=10)
+        assert result == {"phone_numbers": [{"id": "phone1", "number": "+1234567890"}], "count": 1}
+        mock_get.assert_called_once_with("https://api.vapi.ai/phone-number", timeout=10)
     
     @patch('vapi_client.requests.Session.get')
     def test_get_account_info_error(self, mock_get):
@@ -197,6 +197,119 @@ class TestVapiClient:
         client.close()
         
         mock_session.close.assert_called_once()
+
+    @patch('requests.Session.patch')
+    def test_register_webhook_endpoint_success(self, mock_patch):
+        """Test successful webhook endpoint registration."""
+        mock_response = Mock()
+        mock_response.status_code = 200
+        mock_response.json.return_value = {"id": "phone123", "serverUrl": "https://example.com/webhook"}
+        mock_response.raise_for_status.return_value = None
+        mock_patch.return_value = mock_response
+        
+        client = VapiClient(api_key="test_key")
+        result = client.register_webhook_endpoint("phone123", "https://example.com/webhook")
+        
+        assert result["serverUrl"] == "https://example.com/webhook"
+        mock_patch.assert_called_once_with(
+            "https://api.vapi.ai/phone-number/phone123",
+            json={"serverUrl": "https://example.com/webhook"},
+            timeout=10
+        )
+
+    @patch('vapi_client.requests.Session.patch')
+    def test_register_webhook_endpoint_error(self, mock_patch):
+        """Test webhook endpoint registration with error."""
+        mock_patch.side_effect = requests.exceptions.RequestException("API Error")
+        
+        client = VapiClient(api_key="test_key")
+        
+        with pytest.raises(VapiConnectionError, match="Failed to register webhook endpoint: API Error"):
+            client.register_webhook_endpoint("phone123", "https://example.com/webhook")
+
+    @patch('vapi_client.requests.Session.post')
+    def test_create_assistant_success(self, mock_post):
+        """Test successful assistant creation."""
+        mock_response = Mock()
+        mock_response.status_code = 201
+        mock_response.json.return_value = {"id": "asst_123", "name": "Test Assistant"}
+        mock_response.raise_for_status.return_value = None
+        mock_post.return_value = mock_response
+        
+        client = VapiClient(api_key="test_key")
+        assistant_config = {"name": "Test Assistant", "model": "gpt-3.5-turbo"}
+        result = client.create_assistant(assistant_config)
+        
+        assert result["id"] == "asst_123"
+        mock_post.assert_called_once_with(
+            "https://api.vapi.ai/assistant",
+            json=assistant_config,
+            timeout=10
+        )
+
+    @patch('vapi_client.requests.Session.post')
+    def test_create_assistant_error(self, mock_post):
+        """Test assistant creation with error."""
+        mock_post.side_effect = requests.exceptions.RequestException("API Error")
+        
+        client = VapiClient(api_key="test_key")
+        
+        with pytest.raises(VapiConnectionError, match="Failed to create assistant: API Error"):
+            client.create_assistant({"name": "Test Assistant"})
+
+    @patch('vapi_client.requests.Session.patch')
+    def test_end_call_success(self, mock_patch):
+        """Test successful call ending."""
+        mock_response = Mock()
+        mock_response.status_code = 200
+        mock_response.json.return_value = {"id": "call_123", "status": "ended"}
+        mock_response.raise_for_status.return_value = None
+        mock_patch.return_value = mock_response
+        
+        client = VapiClient(api_key="test_key")
+        result = client.end_call("call_123")
+        
+        assert result["status"] == "ended"
+        mock_patch.assert_called_once_with(
+            "https://api.vapi.ai/call/call_123",
+            json={"status": "ended"},
+            timeout=10
+        )
+
+    @patch('vapi_client.requests.Session.patch')
+    def test_end_call_error(self, mock_patch):
+        """Test call ending with error."""
+        mock_patch.side_effect = requests.exceptions.RequestException("API Error")
+        
+        client = VapiClient(api_key="test_key")
+        
+        with pytest.raises(VapiConnectionError, match="Failed to end call: API Error"):
+            client.end_call("call_123")
+
+    @patch('vapi_client.requests.Session.get')
+    def test_get_call_status_success(self, mock_get):
+        """Test successful call status retrieval."""
+        mock_response = Mock()
+        mock_response.status_code = 200
+        mock_response.json.return_value = {"id": "call_123", "status": "in-progress"}
+        mock_response.raise_for_status.return_value = None
+        mock_get.return_value = mock_response
+        
+        client = VapiClient(api_key="test_key")
+        result = client.get_call_status("call_123")
+        
+        assert result["status"] == "in-progress"
+        mock_get.assert_called_once_with("https://api.vapi.ai/call/call_123", timeout=10)
+
+    @patch('vapi_client.requests.Session.get')
+    def test_get_call_status_error(self, mock_get):
+        """Test call status retrieval with error."""
+        mock_get.side_effect = requests.exceptions.RequestException("API Error")
+        
+        client = VapiClient(api_key="test_key")
+        
+        with pytest.raises(VapiConnectionError, match="Failed to get call status: API Error"):
+            client.get_call_status("call_123")
 
 
 class TestVapiClientIntegration:
