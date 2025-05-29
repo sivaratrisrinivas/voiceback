@@ -1,5 +1,9 @@
 # Historical Echo - Development Checklist
 
+## Project Status: Step 5 Complete - Configuration System Foundation
+
+### Phase 2: Configuration System (Step 5 Complete ✅)
+
 ## Project Setup & Environment
 
 ### Initial Setup
@@ -15,7 +19,7 @@
   - [x] pytest
   - [x] logging libraries
 - [x] Create `.env` template file with required variables
-- [x] Create `.gitignore` file
+- [x] Create `.gitignore` file (updated for config directory handling)
 - [x] Set up virtual environment
 - [x] Install dependencies
 
@@ -38,6 +42,7 @@
 - [x] Create `src/main.py` - Entry point and webhook server
 - [x] Create `src/vapi_client.py` - Vapi API integration (with corrected health check)
 - [x] Create `src/call_handler.py` - Call lifecycle management (Step 3 complete)
+- [x] Create `src/config_manager.py` - Configuration loading and validation (Step 5 complete)
 - [ ] Create `src/call_flow_manager.py` - State machine for call flow
 - [ ] Create `src/call_state.py` - Call state tracking
 - [ ] Create `src/historical_echo.py` - Main application orchestrator
@@ -79,18 +84,21 @@
 - [ ] Set up session tracking
 - [ ] Configure log rotation and cleanup
 
-## Configuration Files
+## Configuration Files (Step 5 Complete ✅)
 
-### Response Configuration
-- [ ] Create `config/responses.json` with emotion mappings:
-  - [ ] Anxiety responses (Seneca, Marcus Aurelius, Epictetus)
-  - [ ] Sadness responses (Marcus Aurelius, Rumi, Viktor Frankl)
-  - [ ] Frustration responses
-  - [ ] Uncertainty responses
-  - [ ] Overwhelm responses
+### Response Configuration (Step 5 Complete ✅)
+- [x] Create `config/responses.json` with initial emotion mappings:
+  - [x] Anxiety responses (Seneca with context lines and encouragement)
+  - [x] Sadness responses (Marcus Aurelius with context lines and encouragement)
+  - [x] Proper JSON structure with figure, context_lines, quote, encouragement_lines
+  - [x] Configuration management with validation
+- [ ] Add more historical figures per emotion (2-3 total for variety)
+- [ ] Add Frustration responses
+- [ ] Add Uncertainty responses
+- [ ] Add Overwhelm responses
 - [ ] Add multiple context lines per figure/emotion
 - [ ] Add multiple encouragement lines per emotion
-- [ ] Include authentic historical quotes
+- [ ] Include more authentic historical quotes
 
 ### Keyword Configuration
 - [ ] Create `config/emotion_keywords.json`:
@@ -114,6 +122,22 @@
 - [ ] Set up crisis call flow procedures
 
 ## Core Functionality Implementation
+
+### Configuration System (Step 5 Complete ✅)
+- [x] Implement ConfigManager class:
+  - [x] load_config() method with comprehensive validation
+  - [x] get_emotions() method for available emotions list
+  - [x] get_response(emotion) method for emotion lookup
+  - [x] is_emotion_supported() method for emotion checking
+  - [x] Robust error handling for missing/invalid config files
+  - [x] JSON structure validation (required fields, data types)
+  - [x] Configuration caching and state management
+- [x] Configuration file validation:
+  - [x] Required fields checking (figure, context_lines, quote, encouragement_lines)
+  - [x] Data type validation for all fields
+  - [x] Non-empty validation for strings and arrays
+  - [x] Comprehensive error messages for debugging
+- [x] Updated .gitignore for proper config directory handling
 
 ### Call Flow Management (Step 4 Complete)
 - [x] Implement basic call handling infrastructure:
@@ -166,11 +190,12 @@
 
 ## Testing Suite
 
-### Unit Tests (Step 4 Complete)
+### Unit Tests (Step 5 Complete ✅)
 - [x] `tests/test_main.py` - Basic setup verification (10 tests)
 - [x] `tests/test_vapi_client.py` - API connectivity tests (24 tests)
 - [x] `tests/test_call_handler.py` - Call lifecycle tests (23 tests)
 - [x] `tests/test_voice_delivery.py` - Voice delivery tests (13 tests)
+- [x] `tests/test_config_manager.py` - Configuration tests (20 tests)
 - [ ] `tests/test_call_flow_manager.py` - State machine tests
 - [ ] `tests/test_call_state.py` - State management tests
 - [ ] `tests/test_text_processor.py` - Text processing tests
@@ -181,11 +206,12 @@
 - [ ] `tests/test_crisis_detector.py` - Crisis detection tests
 - [ ] `tests/test_logging_manager.py` - Logging tests
 
-### Integration Tests (Step 4 Complete)
+### Integration Tests (Step 5 Complete ✅)
 - [x] CallHandler integration tests (multiple concurrent calls, complete lifecycle)
 - [x] Voice delivery integration tests (complete call cycle with greeting)
 - [x] Assistant configuration tests (both webhook formats)
 - [x] Call termination and timing tests
+- [x] ConfigManager integration tests (file loading, validation, emotion retrieval)
 - [ ] `tests/test_integration.py` - End-to-end call flow
 - [ ] Test emotion detection → response selection flow
 - [ ] Test voice delivery with timing
@@ -193,104 +219,15 @@
 - [ ] Test crisis detection and response
 - [ ] Test concurrent call handling
 
-### Test Data & Fixtures
+### Test Data & Fixtures (Step 5 Complete ✅)
 - [x] Create mock Vapi API responses
 - [x] Create mock webhook calls for testing
 - [x] VapiClient method tests (register_webhook_endpoint, create_assistant, end_call, get_call_status)
+- [x] Configuration validation test fixtures (valid/invalid configs)
+- [x] Comprehensive ConfigManager test scenarios
 - [ ] Create test emotion inputs
-- [ ] Create expected response validation data
-- [ ] Set up test configuration files
-- [ ] Create call simulation framework
-
-### Manual Testing Procedures (Step 4 Complete)
-- [x] Test call connection
-- [x] Test webhook server setup
-- [x] Test VapiClient health check with real API
-- [x] Manual webhook testing script (test_webhook_manual.py)
-- [x] Test greeting delivery (via assistant configuration)
-- [x] Test voice delivery configuration and timing
-- [x] Test call termination after greeting
-- [ ] Test various emotion inputs
-- [ ] Test quote delivery timing
-- [ ] Test crisis scenarios
-- [ ] Test error scenarios
-- [ ] Test concurrent calls
-- [ ] Test call termination
 
 ## Documentation
 
 ### Core Documentation
-- [ ] Create `README.md` with:
-  - [ ] Project summary (2-3 sentences)
-  - [ ] Quick start guide
-  - [ ] Setup instructions
-  - [ ] Environment variable documentation
-  - [ ] Usage examples
-- [ ] Create `docs/sample_dialogues.md` with realistic examples
-- [ ] Create `docs/architecture_diagram.png`
-- [ ] Document design decisions and trade-offs
-- [ ] List future improvement ideas
-
-### Technical Documentation
-- [ ] Document API endpoints
-- [ ] Document configuration file formats
-- [ ] Create troubleshooting guide
-- [ ] Document testing procedures
-- [ ] Create deployment guide
-
-### Code Documentation
-- [x] Add docstrings to all classes and methods
-- [x] Add inline comments for complex logic
-- [ ] Document configuration options
-- [x] Create type hints throughout codebase
-
-## Performance & Optimization
-
-### Performance Targets
-
-### User Experience Validation
-- [ ] Test with various accents and speech patterns
-- [ ] Validate voice quality across conditions
-- [ ] Test error scenarios user experience
-- [ ] Validate crisis response appropriateness
-- [ ] Test call flow timing and pacing
-
-## Final Validation
-
-### System Integration
-- [ ] Full end-to-end testing
-- [ ] Load testing with concurrent calls
-- [ ] Stress testing under high volume
-- [ ] Failover and recovery testing
-- [ ] Performance validation
-
-### Competition Readiness
-- [ ] Verify all requirements met
-- [ ] Test public phone number access
-- [ ] Validate 30-second interaction target
-- [ ] Confirm crisis handling works
-- [ ] Test with realistic user scenarios
-
-### Documentation Completeness
-- [ ] README is comprehensive and clear
-- [ ] All setup instructions tested
-- [ ] Sample dialogues are accurate
-- [ ] Architecture documentation complete
-- [ ] Code is well-documented
-
----
-
-## Success Criteria Checklist
-
-- [ ] System answers calls reliably
-- [ ] Greeting is clear and inviting
-- [ ] Emotion detection works with various inputs
-- [ ] Historical quotes are delivered with proper timing
-- [ ] Crisis scenarios are handled appropriately
-- [ ] Calls end gracefully with disclaimer
-- [ ] System handles concurrent calls
-- [ ] Error scenarios provide helpful messages
-- [ ] Total interaction time is under 30 seconds
-- [ ] Response time is under 5 seconds
-- [ ] Call completion rate exceeds 90%
-- [ ] Error rate is below 5%
+- [ ] Create `

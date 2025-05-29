@@ -63,7 +63,9 @@ ehthumbs.db
 Thumbs.db
 
 # Application specific
-config/*.json
+# Config directory - ignore sensitive data but allow templates
+config/
+!config/responses.json
 !config/*.template.json
 *.db
 *.sqlite
