@@ -2,7 +2,7 @@
 Call Handler - Vapi Webhook Processing
 
 This module handles incoming call webhooks from Vapi and manages call lifecycle
-for the Voiceback voice agent.
+for the Voiceback voice agent with emotion-based historical quote responses.
 """
 
 from typing import Dict, Any, Optional
@@ -10,8 +10,23 @@ from loguru import logger
 import datetime
 import threading
 
-# Default greeting message for all calls
+# Import emotion detection and response building components
+try:
+    # Try relative imports first (when run as part of package)
+    from .emotion_detector import EmotionDetector
+    from .response_builder import ResponseBuilder
+    from .config_manager import ConfigManager, ConfigurationError
+except ImportError:
+    # Fall back to absolute imports (when run directly or from tests)
+    from emotion_detector import EmotionDetector
+    from response_builder import ResponseBuilder
+    from config_manager import ConfigManager, ConfigurationError
+
+# Default greeting for when emotion system is not available
 DEFAULT_GREETING = "Welcome to Voiceback. Thank you for calling. Goodbye."
+
+# Step 7: Hardcoded input for testing emotion-based responses
+TEST_EMOTION_INPUT = "I'm really anxious about my job interview tomorrow"
 
 
 class CallHandler:
@@ -19,14 +34,42 @@ class CallHandler:
     Handles incoming call webhooks from Vapi and manages call lifecycle.
 
     Manages call events like incoming calls, call answered, call ended,
-    and provides basic call control functionality.
+    and provides emotion-based historical quote responses.
     """
 
-    def __init__(self):
-        """Initialize the CallHandler."""
+    def __init__(self, config_manager: Optional[ConfigManager] = None, 
+                 enable_emotion_responses: bool = True,
+                 crisis_keywords_source: Optional[str] = None,
+                 default_emotion: str = "anxiety"):
+        """
+        Initialize the CallHandler with emotion detection capabilities.
+        
+        Args:
+            config_manager: Optional ConfigManager instance for emotion responses
+            enable_emotion_responses: If True, use emotion-based responses. If False, use default greeting.
+            crisis_keywords_source: Path to crisis keywords file or None for defaults  
+            default_emotion: Default emotion when input is unclear (default: "anxiety")
+        """
         self.active_calls: Dict[str, Dict[str, Any]] = {}
         self._lock = threading.RLock()
-        logger.info("CallHandler initialized")
+        
+        # Initialize emotion processing components only if enabled
+        self.enable_emotion_responses = enable_emotion_responses
+        if enable_emotion_responses:
+            self.emotion_detector = EmotionDetector(
+                crisis_keywords_source=crisis_keywords_source,
+                default_emotion=default_emotion
+            )
+            self.response_builder = ResponseBuilder()
+            self.config_manager = config_manager
+        else:
+            self.emotion_detector = None
+            self.response_builder = None
+            self.config_manager = None
+        
+        logger.info(f"CallHandler initialized with emotion detection {'enabled' if enable_emotion_responses else 'disabled'}")
+        if enable_emotion_responses:
+            logger.info(f"Emotion system configured with default emotion: '{default_emotion}'")
 
     def handle_webhook(self, webhook_data: Dict[str, Any]) -> Dict[str, Any]:
         """
@@ -105,9 +148,13 @@ class CallHandler:
             logger.info(
                 f"Assistant requested for call: {call_id} from {from_number}")
 
-            # Return assistant configuration that will speak the greeting and
-            # then end the call
-            return self.send_voice_message(call_id, DEFAULT_GREETING)
+            # Choose response type based on emotion detection setting
+            if self.enable_emotion_responses:
+                voice_response = self._generate_emotion_response(call_id)
+            else:
+                voice_response = DEFAULT_GREETING
+                
+            return self.send_voice_message(call_id, voice_response)
 
     def _handle_call_started(
             self, call_id: str, webhook_data: Dict[str, Any]
@@ -130,8 +177,13 @@ class CallHandler:
             from_number = call_info.get('from_number')
             logger.info(f"Call started: {call_id} from {from_number}")
 
-            # For Step 4: Deliver greeting instead of immediately hanging up
-            return self.send_voice_message(call_id, DEFAULT_GREETING)
+            # Choose response type based on emotion detection setting
+            if self.enable_emotion_responses:
+                voice_response = self._generate_emotion_response(call_id)
+            else:
+                voice_response = DEFAULT_GREETING
+                
+            return self.send_voice_message(call_id, voice_response)
 
     def _handle_call_ended(
             self, call_id: str, webhook_data: Dict[str, Any]
@@ -321,3 +373,62 @@ class CallHandler:
         """
         with self._lock:
             return self.active_calls.get(call_id)
+
+    def _generate_emotion_response(self, call_id: str) -> str:
+        """
+        Generate an emotion-based historical quote response.
+        
+        Args:
+            call_id: The call ID for logging
+            
+        Returns:
+            Formatted voice response with historical quote
+        """
+        try:
+            # Check if emotion detection is enabled
+            if not self.enable_emotion_responses or not self.emotion_detector or not self.response_builder:
+                logger.warning(f"Emotion detection disabled for call {call_id}, using default greeting")
+                return DEFAULT_GREETING
+            
+            # Step 7: Use hardcoded anxious input for testing
+            user_input = TEST_EMOTION_INPUT
+            logger.info(f"Processing emotion input for call {call_id}: '{user_input}'")
+            
+            # Detect emotion from user input
+            emotion = self.emotion_detector.detect_emotion(user_input)
+            logger.info(f"Detected emotion '{emotion}' for call {call_id}")
+            
+            # Handle crisis case
+            if emotion == "crisis":
+                logger.warning(f"Crisis detected in call {call_id}")
+                response = self.response_builder.build_response(emotion, None, user_input)
+                return self.response_builder.add_disclaimer(response)
+            
+            # Get response data from configuration
+            if self.config_manager:
+                try:
+                    response_data = self.config_manager.get_random_response(emotion)
+                    if response_data:
+                        logger.info(f"Found response for emotion '{emotion}' using figure '{response_data.get('figure')}'")
+                    else:
+                        logger.warning(f"No response data found for emotion '{emotion}'")
+                except ConfigurationError as e:
+                    logger.error(f"Configuration error getting response for '{emotion}': {e}")
+                    response_data = None
+            else:
+                logger.warning("No config manager available for emotion responses")
+                response_data = None
+            
+            # Build the response
+            response = self.response_builder.build_response(emotion, response_data, user_input)
+            
+            # Add disclaimer and return
+            final_response = self.response_builder.add_disclaimer(response)
+            
+            logger.info(f"Generated emotion response for call {call_id}: {final_response[:100]}...")
+            return final_response
+            
+        except Exception as e:
+            logger.error(f"Error generating emotion response for call {call_id}: {e}")
+            # Fallback to default greeting
+            return DEFAULT_GREETING

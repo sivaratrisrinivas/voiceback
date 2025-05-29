@@ -22,7 +22,8 @@ class TestCallHandler:
     
     def setup_method(self):
         """Set up test fixtures."""
-        self.call_handler = CallHandler()
+        # Disable emotion responses for backward compatibility with existing tests
+        self.call_handler = CallHandler(enable_emotion_responses=False)
         self.sample_call_id = "call_12345"
     
     def test_init(self):
@@ -239,8 +240,9 @@ class TestCallHandlerIntegration:
     """Integration tests for CallHandler with realistic scenarios."""
     
     def setup_method(self):
-        """Set up test fixtures."""
-        self.call_handler = CallHandler()
+        """Set up test fixtures for integration tests."""
+        # Disable emotion responses for backward compatibility with existing tests
+        self.call_handler = CallHandler(enable_emotion_responses=False)
     
     def test_complete_call_lifecycle(self):
         """Test a complete call from start to end."""

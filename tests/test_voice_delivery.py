@@ -23,7 +23,7 @@ class TestVoiceDelivery:
     @pytest.fixture
     def call_handler(self):
         """Create a CallHandler instance for testing."""
-        return CallHandler()
+        return CallHandler(enable_emotion_responses=False)
 
     @pytest.fixture
     def sample_call_id(self):
@@ -55,6 +55,11 @@ class TestVoiceDelivery:
                 "phoneNumber": {"number": "+0987654321"}
             }
         }
+
+    def setup_method(self):
+        """Set up test fixtures."""
+        # Disable emotion responses for backward compatibility with existing tests  
+        self.call_handler = CallHandler(enable_emotion_responses=False)
 
     def test_send_voice_message_success(self, call_handler, sample_call_id):
         """Test successful voice message sending."""

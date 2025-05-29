@@ -15,7 +15,7 @@ import pytest
 sys.path.insert(0, str(Path(__file__).parent.parent / "src"))
 
 try:
-    from main import setup_logging, validate_environment, health_check
+    from main import setup_logging, validate_environment, load_and_validate_configuration, check_vapi_connectivity
 except ImportError:
     pytest.skip("main module not yet implemented", allow_module_level=True)
 
@@ -47,38 +47,46 @@ class TestMainModule:
         result = validate_environment()
         assert result is False
     
-    @patch('main.check_vapi_connectivity')
-    @patch('main.validate_environment')
-    def test_health_check_success(self, mock_validate_env, mock_vapi_check):
-        """Test health check with successful validation."""
-        mock_validate_env.return_value = True
-        mock_vapi_check.return_value = True
-        result = health_check()
+    @patch('main.ConfigManager')
+    def test_load_and_validate_configuration_success(self, mock_config_manager):
+        """Test configuration loading with successful validation."""
+        # Mock the config manager with proper schema structure
+        mock_config = MagicMock()
+        mock_config.load_config.return_value = {
+            "anxiety": [{
+                "figure": "Seneca",
+                "context_lines": ["the Stoic philosopher"],
+                "quote": "We suffer more often in imagination than in reality.",
+                "encouragement_lines": ["You have strength within you."]
+            }]
+        }
+        mock_config.get_emotions.return_value = ["anxiety", "sadness"]
+        mock_config_manager.return_value = mock_config
+        
+        result = load_and_validate_configuration()
         assert result is True
-        mock_validate_env.assert_called_once()
-        mock_vapi_check.assert_called_once()
     
-    @patch('main.check_vapi_connectivity')
-    @patch('main.validate_environment')
-    def test_health_check_failure(self, mock_validate_env, mock_vapi_check):
-        """Test health check with failed validation."""
-        mock_validate_env.return_value = False
-        # Vapi check shouldn't be called if environment validation fails
-        result = health_check()
-        assert result is False
-        mock_validate_env.assert_called_once()
-        mock_vapi_check.assert_not_called()
+    @patch('main.VapiClient')
+    def test_check_vapi_connectivity_success(self, mock_vapi_client):
+        """Test Vapi connectivity check with successful connection."""
+        # Mock successful health check
+        mock_client = MagicMock()
+        mock_client.health_check.return_value = True
+        mock_vapi_client.return_value.__enter__.return_value = mock_client
+        
+        result = check_vapi_connectivity()
+        assert result is True
     
-    @patch('main.check_vapi_connectivity')
-    @patch('main.validate_environment')
-    def test_health_check_vapi_failure(self, mock_validate_env, mock_vapi_check):
-        """Test health check with failed Vapi connectivity."""
-        mock_validate_env.return_value = True
-        mock_vapi_check.return_value = False
-        result = health_check()
+    @patch('main.VapiClient')
+    def test_check_vapi_connectivity_failure(self, mock_vapi_client):
+        """Test Vapi connectivity check with failed connection."""
+        # Mock failed health check
+        mock_client = MagicMock()
+        mock_client.health_check.return_value = False
+        mock_vapi_client.return_value.__enter__.return_value = mock_client
+        
+        result = check_vapi_connectivity()
         assert result is False
-        mock_validate_env.assert_called_once()
-        mock_vapi_check.assert_called_once()
 
 
 class TestProjectStructure:

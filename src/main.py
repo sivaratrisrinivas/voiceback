@@ -281,9 +281,9 @@ def setup_webhook_server():
     """Setup and configure the Flask webhook server."""
     global call_handler, vapi_client
     
-    # Initialize call handler
-    call_handler = CallHandler()
-    logger.info("CallHandler initialized")
+    # Initialize call handler with config manager for emotion responses
+    call_handler = CallHandler(config_manager=config_manager)
+    logger.info("CallHandler initialized with emotion detection")
     
     # Initialize Vapi client for call control
     vapi_client = VapiClient()

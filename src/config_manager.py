@@ -8,6 +8,7 @@ from config/responses.json with robust schema validation and caching.
 import json
 import os
 import threading
+import random
 from typing import Dict, List, Any, Optional
 from loguru import logger
 import jsonschema
@@ -239,9 +240,47 @@ class ConfigManager:
             if emotion not in self._config_data:
                 return None
             
-            # For now, return the first response. Later steps will add randomization.
+            # Return a random response for variety
             responses = self._config_data[emotion]
-            return responses[0] if responses else None
+            return random.choice(responses) if responses else None
+    
+    def get_random_response(self, emotion: str) -> Optional[Dict[str, Any]]:
+        """
+        Get a randomly selected response configuration for the specified emotion.
+        
+        Args:
+            emotion: The emotion to get response for
+            
+        Returns:
+            Dictionary containing response data with randomized sub-elements,
+            or None if emotion not found
+            
+        Raises:
+            ConfigurationError: If configuration not loaded
+        """
+        with self._lock:
+            if self._config_data is None:
+                raise ConfigurationError("Configuration not loaded. Call load_config() first.")
+            
+            if emotion not in self._config_data:
+                return None
+            
+            responses = self._config_data[emotion]
+            if not responses:
+                return None
+            
+            # Select random response
+            response = random.choice(responses)
+            
+            # Create a copy with randomized elements for variety
+            randomized_response = {
+                "figure": response["figure"],
+                "context_line": random.choice(response["context_lines"]),
+                "quote": response["quote"],
+                "encouragement_line": random.choice(response["encouragement_lines"])
+            }
+            
+            return randomized_response
     
     def get_all_responses(self, emotion: str) -> List[Dict[str, Any]]:
         """
