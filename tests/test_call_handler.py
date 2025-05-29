@@ -66,10 +66,9 @@ class TestCallHandler:
         
         response = self.call_handler.handle_webhook(webhook_data)
         
-        # Should answer and immediately end call (Step 3 behavior)
-        assert response["status"] == "success"
-        assert "instruction" in response
-        assert response["instruction"]["type"] == "end_call"
+        # Step 4: Should now return assistant configuration for greeting
+        assert "assistant" in response
+        assert response["assistant"]["firstMessage"] == "Welcome to Historical Echo. Thank you for calling. Goodbye."
         
         # Call should be in active calls initially
         assert self.sample_call_id in self.call_handler.active_calls
@@ -154,10 +153,9 @@ class TestCallHandler:
         
         response = self.call_handler.handle_webhook(webhook_data)
         
-        # Should still work but with None values for missing fields
-        assert response["status"] == "success"
-        assert "instruction" in response
-        assert response["instruction"]["type"] == "end_call"
+        # Step 4: Should return assistant configuration for greeting
+        assert "assistant" in response
+        assert response["assistant"]["firstMessage"] == "Welcome to Historical Echo. Thank you for calling. Goodbye."
         
         # Call should be in active calls with None values for missing fields
         assert self.sample_call_id in self.call_handler.active_calls
@@ -175,10 +173,8 @@ class TestCallHandler:
         
         response = self.call_handler.answer_call(self.sample_call_id)
         
-        # Should immediately end call (Step 3 behavior)
+        # Step 4: answer_call now returns simple acknowledgment since voice delivery handles the flow
         assert response["status"] == "success"
-        assert "instruction" in response
-        assert response["instruction"]["type"] == "end_call"
     
     def test_answer_call_unknown(self):
         """Test answering unknown call."""
@@ -262,9 +258,9 @@ class TestCallHandlerIntegration:
         
         start_response = self.call_handler.handle_webhook(start_webhook)
         
-        # Should answer and immediately instruct to end call
-        assert start_response["status"] == "success"
-        assert start_response["instruction"]["type"] == "end_call"
+        # Step 4: Should return assistant configuration for voice greeting
+        assert "assistant" in start_response
+        assert start_response["assistant"]["firstMessage"] == "Welcome to Historical Echo. Thank you for calling. Goodbye."
         assert call_id in self.call_handler.active_calls
         
         # 2. Call ended
@@ -293,7 +289,9 @@ class TestCallHandlerIntegration:
                 }
             }
             response = self.call_handler.handle_webhook(webhook)
-            assert response["status"] == "success"
+            # Step 4: Should return assistant configuration for voice greeting
+            assert "assistant" in response
+            assert response["assistant"]["firstMessage"] == "Welcome to Historical Echo. Thank you for calling. Goodbye."
         
         # All calls should be active
         active_calls = self.call_handler.get_active_calls()

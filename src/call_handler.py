@@ -36,9 +36,18 @@ class CallHandler:
             Dict containing response data for Vapi
         """
         try:
-            # Extract common webhook fields
-            call_id = webhook_data.get('call', {}).get('id')
-            event_type = webhook_data.get('type')
+            # Handle different webhook formats
+            if 'message' in webhook_data:
+                # New format: {"message": {"type": "assistant-request", "call": {...}}}
+                message = webhook_data['message']
+                event_type = message.get('type')
+                call_data = message.get('call', {})
+                call_id = call_data.get('id')
+            else:
+                # Legacy format: {"type": "call.started", "call": {...}}
+                event_type = webhook_data.get('type')
+                call_data = webhook_data.get('call', {})
+                call_id = call_data.get('id')
             
             if not call_id:
                 logger.warning("Webhook received without call ID")
@@ -47,7 +56,9 @@ class CallHandler:
             logger.info(f"Processing webhook: {event_type} for call {call_id}")
             
             # Route webhook to appropriate handler based on event type
-            if event_type == 'call.started':
+            if event_type == 'assistant-request':
+                return self._handle_assistant_request(call_id, webhook_data)
+            elif event_type == 'call.started':
                 return self._handle_call_started(call_id, webhook_data)
             elif event_type == 'call.ended':
                 return self._handle_call_ended(call_id, webhook_data)
@@ -63,6 +74,29 @@ class CallHandler:
             logger.error(f"Error processing webhook: {str(e)}")
             return {"status": "error", "message": "Webhook processing failed"}
     
+    def _handle_assistant_request(self, call_id: str, webhook_data: Dict[str, Any]) -> Dict[str, Any]:
+        """Handle assistant request event - this is when Vapi needs an assistant configuration for a call."""
+        with self._lock:
+            # Extract call information
+            if 'message' in webhook_data:
+                call_data = webhook_data['message'].get('call', {})
+            else:
+                call_data = webhook_data.get('call', {})
+            
+            call_info = {
+                'id': call_id,
+                'started_at': datetime.datetime.now().isoformat(),
+                'status': 'active',
+                'from_number': call_data.get('customer', {}).get('number'),
+                'to_number': call_data.get('phoneNumber', {}).get('number')
+            }
+            
+            self.active_calls[call_id] = call_info
+            logger.info(f"Assistant requested for call: {call_id} from {call_info.get('from_number')}")
+            
+            # Return assistant configuration that will speak the greeting and then end the call
+            return self.send_voice_message(call_id, "Welcome to Historical Echo. Thank you for calling. Goodbye.")
+    
     def _handle_call_started(self, call_id: str, webhook_data: Dict[str, Any]) -> Dict[str, Any]:
         """Handle call started event."""
         with self._lock:
@@ -77,8 +111,8 @@ class CallHandler:
             self.active_calls[call_id] = call_info
             logger.info(f"Call started: {call_id} from {call_info.get('from_number')}")
             
-            # For Step 3: Answer call and immediately hang up
-            return self.answer_call(call_id)
+            # For Step 4: Deliver greeting instead of immediately hanging up
+            return self.send_voice_message(call_id, "Welcome to Historical Echo. Thank you for calling. Goodbye.")
     
     def _handle_call_ended(self, call_id: str, webhook_data: Dict[str, Any]) -> Dict[str, Any]:
         """Handle call ended event."""
@@ -113,6 +147,50 @@ class CallHandler:
         logger.info(f"Speech ended on call: {call_id}")
         return {"status": "received"}
     
+    def send_voice_message(self, call_id: str, message: str) -> Dict[str, Any]:
+        """
+        Send a voice message to the caller using Vapi assistant configuration.
+        
+        Args:
+            call_id: The ID of the call
+            message: The text message to speak
+            
+        Returns:
+            Dict containing assistant configuration for Vapi
+        """
+        with self._lock:
+            if call_id not in self.active_calls:
+                logger.error(f"Cannot send voice message to unknown call: {call_id}")
+                return {"status": "error", "message": "Call not found"}
+            
+            logger.info(f"Sending voice message to call {call_id}: {message}")
+            
+            # Return assistant configuration that will speak the message and then end the call
+            return {
+                "assistant": {
+                    "firstMessage": message,
+                    "model": {
+                        "provider": "openai",
+                        "model": "gpt-3.5-turbo",
+                        "messages": [
+                            {
+                                "role": "system",
+                                "content": "You are a voice agent for Historical Echo. After delivering your first message, immediately end the call by saying nothing more."
+                            }
+                        ]
+                    },
+                    "voice": {
+                        "provider": "openai",
+                        "voiceId": "alloy"
+                    },
+                    "endCallAfterSilenceMs": 1000,  # End call after 1 second of silence
+                    "transcriber": {
+                        "provider": "deepgram",
+                        "model": "nova-2"
+                    }
+                }
+            }
+    
     def answer_call(self, call_id: str) -> Dict[str, Any]:
         """
         Answer an incoming call.
@@ -130,9 +208,9 @@ class CallHandler:
             
             logger.info(f"Answering call: {call_id}")
             
-            # For Step 3: Immediately end call after answering
-            # This establishes basic call flow without voice interaction
-            return self.end_call(call_id)
+            # For Step 4: This method is now redundant as send_voice_message handles answering
+            # Return basic acknowledgment
+            return {"status": "success"}
     
     def end_call(self, call_id: str) -> Dict[str, Any]:
         """
