@@ -115,15 +115,22 @@
 
 ## Core Functionality Implementation
 
-### Call Flow Management (Step 3 Complete)
+### Call Flow Management (Step 4 Complete)
 - [x] Implement basic call handling infrastructure:
   - [x] Answer incoming calls
   - [x] Log call events (start, end)
-  - [x] Basic call control (immediate hangup for Step 3)
+  - [x] Basic call control (greeting delivery for Step 4)
   - [x] Webhook processing for call.started, call.ended, speech events
   - [x] Call state tracking and management
   - [x] Flask webhook server with proper endpoints
   - [x] Integration with VapiClient for call control
+- [x] Voice response capability (Step 4):
+  - [x] Implement send_voice_message method
+  - [x] Assistant configuration generation for voice delivery
+  - [x] Greeting delivery instead of immediate hangup
+  - [x] Voice timing and call termination settings
+  - [x] Support for both assistant-request and call.started webhooks
+  - [x] Comprehensive voice delivery testing (13 tests)
 - [ ] Add state transition validation
 - [ ] Implement timeout handling (7 seconds + retry)
 - [ ] Add call cleanup procedures
@@ -144,32 +151,41 @@
 - [ ] Add emotion-specific tone adjustments
 - [ ] Implement anti-repetition logic
 
-### Voice Delivery
+### Voice Delivery (Step 4 Complete)
+- [x] Basic voice message delivery system:
+  - [x] Configure voice parameters for greeting delivery
+  - [x] Implement simple pause timing for call termination
+  - [x] Create delivery monitoring and logging
+  - [x] Implement delivery response formatting
+  - [x] Basic voice configuration (OpenAI "alloy" voice)
+  - [x] Call termination after greeting delivery
 - [ ] Configure voice parameters for different emotions
-- [ ] Implement pause timing (0.5s, 1.0s pauses)
+- [ ] Implement pause timing (0.5s, 1.0s pauses) for complex responses
 - [ ] Add speech rate optimization
-- [ ] Create delivery monitoring
-- [ ] Implement delivery failure handling
+- [ ] Implement advanced delivery failure handling
 
 ## Testing Suite
 
-### Unit Tests (Step 3 Complete)
-- [x] `tests/test_main.py` - Basic setup verification
-- [x] `tests/test_vapi_client.py` - API connectivity tests (updated for correct endpoint)
-- [x] `tests/test_call_handler.py` - Call lifecycle tests (comprehensive 18 tests)
+### Unit Tests (Step 4 Complete)
+- [x] `tests/test_main.py` - Basic setup verification (10 tests)
+- [x] `tests/test_vapi_client.py` - API connectivity tests (24 tests)
+- [x] `tests/test_call_handler.py` - Call lifecycle tests (23 tests)
+- [x] `tests/test_voice_delivery.py` - Voice delivery tests (13 tests)
 - [ ] `tests/test_call_flow_manager.py` - State machine tests
 - [ ] `tests/test_call_state.py` - State management tests
 - [ ] `tests/test_text_processor.py` - Text processing tests
 - [ ] `tests/test_emotion_detector.py` - Emotion detection tests
 - [ ] `tests/test_response_builder.py` - Response generation tests
 - [ ] `tests/test_quote_selector.py` - Quote selection tests
-- [ ] `tests/test_voice_delivery.py` - Voice delivery tests
 - [ ] `tests/test_error_handler.py` - Error handling tests
 - [ ] `tests/test_crisis_detector.py` - Crisis detection tests
 - [ ] `tests/test_logging_manager.py` - Logging tests
 
-### Integration Tests
+### Integration Tests (Step 4 Complete)
 - [x] CallHandler integration tests (multiple concurrent calls, complete lifecycle)
+- [x] Voice delivery integration tests (complete call cycle with greeting)
+- [x] Assistant configuration tests (both webhook formats)
+- [x] Call termination and timing tests
 - [ ] `tests/test_integration.py` - End-to-end call flow
 - [ ] Test emotion detection → response selection flow
 - [ ] Test voice delivery with timing
@@ -186,12 +202,14 @@
 - [ ] Set up test configuration files
 - [ ] Create call simulation framework
 
-### Manual Testing Procedures
+### Manual Testing Procedures (Step 4 Complete)
 - [x] Test call connection
 - [x] Test webhook server setup
 - [x] Test VapiClient health check with real API
 - [x] Manual webhook testing script (test_webhook_manual.py)
-- [ ] Test greeting delivery
+- [x] Test greeting delivery (via assistant configuration)
+- [x] Test voice delivery configuration and timing
+- [x] Test call termination after greeting
 - [ ] Test various emotion inputs
 - [ ] Test quote delivery timing
 - [ ] Test crisis scenarios
