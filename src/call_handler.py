@@ -10,6 +10,9 @@ from loguru import logger
 import datetime
 import threading
 
+# Default greeting message for all calls
+DEFAULT_GREETING = "Welcome to Voiceback. Thank you for calling. Goodbye."
+
 
 class CallHandler:
     """
@@ -104,9 +107,7 @@ class CallHandler:
 
             # Return assistant configuration that will speak the greeting and
             # then end the call
-            greeting = ("Welcome to Voiceback. Thank you for calling. "
-                        "Goodbye.")
-            return self.send_voice_message(call_id, greeting)
+            return self.send_voice_message(call_id, DEFAULT_GREETING)
 
     def _handle_call_started(
             self, call_id: str, webhook_data: Dict[str, Any]
@@ -130,9 +131,7 @@ class CallHandler:
             logger.info(f"Call started: {call_id} from {from_number}")
 
             # For Step 4: Deliver greeting instead of immediately hanging up
-            greeting = ("Welcome to Voiceback. Thank you for calling. "
-                        "Goodbye.")
-            return self.send_voice_message(call_id, greeting)
+            return self.send_voice_message(call_id, DEFAULT_GREETING)
 
     def _handle_call_ended(
             self, call_id: str, webhook_data: Dict[str, Any]
@@ -188,8 +187,7 @@ class CallHandler:
             Assistant configuration for voice delivery
         """
         if message is None:
-            greeting = ("Welcome to Voiceback. Thank you for calling. "
-                      "Goodbye.")
+            greeting = DEFAULT_GREETING
         else:
             greeting = message
         
@@ -218,8 +216,7 @@ class CallHandler:
         """
         # Default greeting if no message provided
         if not message:
-            message = ("Welcome to Voiceback. Thank you for calling. "
-                      "Goodbye.")
+            message = DEFAULT_GREETING
         
         # Create assistant configuration
         assistant_config = {

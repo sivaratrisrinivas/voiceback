@@ -14,7 +14,7 @@ from pathlib import Path
 # Add src directory to Python path for imports
 sys.path.insert(0, str(Path(__file__).parent.parent / "src"))
 
-from call_handler import CallHandler
+from call_handler import CallHandler, DEFAULT_GREETING
 
 
 class TestVoiceDelivery:
@@ -59,7 +59,7 @@ class TestVoiceDelivery:
     def test_send_voice_message_success(self, call_handler, sample_call_id):
         """Test successful voice message sending."""
         # Test voice message sending
-        message = "Welcome to Voiceback. Thank you for calling. Goodbye."
+        message = DEFAULT_GREETING
         response = call_handler.send_voice_message(sample_call_id, message)
 
         # Verify response structure
@@ -103,7 +103,7 @@ class TestVoiceDelivery:
         
         # Verify assistant configuration is returned
         assert "assistant" in response
-        assert response["assistant"]["firstMessage"] == "Welcome to Voiceback. Thank you for calling. Goodbye."
+        assert response["assistant"]["firstMessage"] == DEFAULT_GREETING
         
         # Verify call is added to active calls
         call_id = sample_assistant_request_webhook["message"]["call"]["id"]
@@ -121,7 +121,7 @@ class TestVoiceDelivery:
         
         # Verify assistant configuration is returned
         assert "assistant" in response
-        assert response["assistant"]["firstMessage"] == "Welcome to Voiceback. Thank you for calling. Goodbye."
+        assert response["assistant"]["firstMessage"] == DEFAULT_GREETING
         
         # Verify call is added to active calls
         call_id = sample_legacy_call_started_webhook["call"]["id"]
@@ -162,7 +162,7 @@ class TestVoiceDelivery:
         """Test that the correct greeting text is delivered."""
         response = call_handler.handle_webhook(sample_assistant_request_webhook)
         
-        expected_greeting = "Welcome to Voiceback. Thank you for calling. Goodbye."
+        expected_greeting = DEFAULT_GREETING
         assert response["assistant"]["firstMessage"] == expected_greeting
 
     def test_call_flow_complete_cycle(self, call_handler):
@@ -184,7 +184,7 @@ class TestVoiceDelivery:
         
         # Verify complete flow
         assert "assistant" in response
-        assert response["assistant"]["firstMessage"] == "Welcome to Voiceback. Thank you for calling. Goodbye."
+        assert response["assistant"]["firstMessage"] == DEFAULT_GREETING
         
         # Verify call tracking
         assert "call_flow_test" in call_handler.active_calls
@@ -256,7 +256,7 @@ class TestVoiceDelivery:
     def test_voice_delivery_timing_target(self, call_handler, sample_call_id):
         """Test that voice delivery is optimized for 30-second interaction target."""
         # Test with standard greeting
-        message = "Welcome to Voiceback. Thank you for calling. Goodbye."
+        message = DEFAULT_GREETING
         response = call_handler.send_voice_message(sample_call_id, message)
         
         # Verify call ends quickly after message

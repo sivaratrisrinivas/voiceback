@@ -14,7 +14,7 @@ import datetime
 # Add src directory to path for imports
 sys.path.insert(0, str(Path(__file__).parent.parent / "src"))
 
-from call_handler import CallHandler
+from call_handler import CallHandler, DEFAULT_GREETING
 
 
 class TestCallHandler:
@@ -68,7 +68,7 @@ class TestCallHandler:
         
         # Step 4: Should now return assistant configuration for greeting
         assert "assistant" in response
-        assert response["assistant"]["firstMessage"] == "Welcome to Voiceback. Thank you for calling. Goodbye."
+        assert response["assistant"]["firstMessage"] == DEFAULT_GREETING
         
         # Call should be in active calls initially
         assert self.sample_call_id in self.call_handler.active_calls
@@ -155,7 +155,7 @@ class TestCallHandler:
         
         # Step 4: Should return assistant configuration for greeting
         assert "assistant" in response
-        assert response["assistant"]["firstMessage"] == "Welcome to Voiceback. Thank you for calling. Goodbye."
+        assert response["assistant"]["firstMessage"] == DEFAULT_GREETING
         
         # Call should be in active calls with None values for missing fields
         assert self.sample_call_id in self.call_handler.active_calls
@@ -260,7 +260,7 @@ class TestCallHandlerIntegration:
         
         # Step 4: Should return assistant configuration for voice greeting
         assert "assistant" in start_response
-        assert start_response["assistant"]["firstMessage"] == "Welcome to Voiceback. Thank you for calling. Goodbye."
+        assert start_response["assistant"]["firstMessage"] == DEFAULT_GREETING
         assert call_id in self.call_handler.active_calls
         
         # 2. Call ended
@@ -291,7 +291,7 @@ class TestCallHandlerIntegration:
             response = self.call_handler.handle_webhook(webhook)
             # Step 4: Should return assistant configuration for voice greeting
             assert "assistant" in response
-            assert response["assistant"]["firstMessage"] == "Welcome to Voiceback. Thank you for calling. Goodbye."
+            assert response["assistant"]["firstMessage"] == DEFAULT_GREETING
         
         # All calls should be active
         active_calls = self.call_handler.get_active_calls()
