@@ -3,7 +3,7 @@
 Voiceback - Main Entry Point
 
 Flask webhook server that handles Vapi voice agent calls and delivers
-historical wisdom based on user emotions.
+LLM-powered emotional support and guidance.
 """
 
 import os
@@ -26,8 +26,6 @@ from werkzeug.serving import make_server
 # Application imports
 from vapi_client import VapiClient, VapiConnectionError, VapiAuthenticationError
 from call_handler import CallHandler
-from config_manager import ConfigManager, ConfigurationError
-from models import ConfigurationStats
 
 # Application configuration
 load_dotenv()
@@ -36,7 +34,6 @@ load_dotenv()
 app = Flask(__name__)
 call_handler: Optional[CallHandler] = None
 vapi_client: Optional[VapiClient] = None
-config_manager: Optional[ConfigManager] = None
 server_thread: Optional[threading.Thread] = None
 flask_server = None  # Reference to the Werkzeug server
 shutdown_event = threading.Event()  # Event to signal shutdown
@@ -60,61 +57,45 @@ def setup_logging():
 def validate_environment():
     """Validate that required environment variables are set."""
     required_vars = ["VAPI_API_KEY", "PHONE_NUMBER"]
-    optional_vars = ["WEBHOOK_HOST", "WEBHOOK_PORT"]
+    llm_vars = ["OPENAI_API_KEY", "ANTHROPIC_API_KEY", "XAI_API_KEY"]  # Any LLM API key
+    optional_vars = ["WEBHOOK_HOST", "WEBHOOK_PORT", "LLM_PROVIDER"]
     missing_vars = []
     
     for var in required_vars:
         if not os.getenv(var):
             missing_vars.append(var)
     
+    # Check for at least one LLM API key
+    has_llm_key = any(os.getenv(var) for var in llm_vars)
+    if not has_llm_key:
+        logger.error("At least one LLM API key is required (OPENAI_API_KEY, ANTHROPIC_API_KEY, or XAI_API_KEY)")
+        missing_vars.extend(["One of: OPENAI_API_KEY, ANTHROPIC_API_KEY, XAI_API_KEY"])
+    
     if missing_vars:
         logger.error(f"Missing required environment variables: {', '.join(missing_vars)}")
         logger.error("Please check your .env file and ensure all required variables are set")
         return False
     
-    # Log optional variables with defaults
+    # Log configuration
     webhook_host = os.getenv("WEBHOOK_HOST", "localhost")
     webhook_port = os.getenv("WEBHOOK_PORT", "5000")
+    llm_provider = os.getenv("LLM_PROVIDER", "openai")
     logger.info(f"Webhook server will run on {webhook_host}:{webhook_port}")
+    logger.info(f"LLM provider: {llm_provider}")
+    
+    # Validate LLM provider has corresponding API key
+    if llm_provider == "openai" and not os.getenv("OPENAI_API_KEY"):
+        logger.error("LLM_PROVIDER is set to 'openai' but OPENAI_API_KEY is missing")
+        return False
+    elif llm_provider == "xai" and not os.getenv("XAI_API_KEY"):
+        logger.error("LLM_PROVIDER is set to 'xai' but XAI_API_KEY is missing")
+        return False
+    elif llm_provider == "anthropic" and not os.getenv("ANTHROPIC_API_KEY"):
+        logger.error("LLM_PROVIDER is set to 'anthropic' but ANTHROPIC_API_KEY is missing")
+        return False
     
     logger.info("Environment validation passed")
     return True
-
-
-def load_and_validate_configuration():
-    """Load and validate application configuration."""
-    global config_manager
-    
-    try:
-        # Initialize configuration manager
-        config_path = os.getenv("CONFIG_PATH", "config/responses.json")
-        config_manager = ConfigManager(config_path)
-        
-        logger.info(f"Loading configuration from {config_path}")
-        
-        # Load configuration
-        config_data = config_manager.load_config()
-        
-        # Generate and log statistics
-        stats = ConfigurationStats.from_config_data(config_data)
-        logger.info(f"Configuration loaded successfully:")
-        logger.info(f"  - {stats.total_emotions} emotions with {stats.total_responses} total responses")
-        logger.info(f"  - {stats.unique_figures} unique historical figures")
-        logger.info(f"  - Estimated total speaking time: {stats.estimated_total_speaking_time:.1f}s")
-        
-        # Log available emotions
-        emotions = config_manager.get_emotions()
-        logger.info(f"Available emotions: {', '.join(emotions)}")
-        
-        return True
-        
-    except ConfigurationError as e:
-        logger.error(f"Configuration validation failed: {e}")
-        logger.error("Please check your configuration file and fix any issues")
-        return False
-    except Exception as e:
-        logger.error(f"Unexpected error loading configuration: {e}")
-        return False
 
 
 def check_vapi_connectivity():
@@ -192,39 +173,22 @@ def health_check():
                 }
                 health_status["status"] = "degraded"
         
-        # Check configuration health
-        if config_manager:
-            try:
-                # Check if config is loaded
-                if config_manager.is_config_loaded():
-                    emotions = config_manager.get_emotions()
-                    health_status["checks"]["configuration"] = {
-                        "status": "loaded",
-                        "message": f"Configuration valid with {len(emotions)} emotions",
-                        "emotions": emotions
-                    }
-                    
-                    # Check if config file has been modified
-                    current_mtime = config_manager.get_config_file_mtime()
-                    if current_mtime:
-                        import os
-                        actual_mtime = os.path.getmtime(config_manager.config_path)
-                        if actual_mtime > current_mtime:
-                            health_status["checks"]["configuration"]["status"] = "outdated"
-                            health_status["checks"]["configuration"]["message"] += " (file modified, reload recommended)"
-                            health_status["status"] = "degraded"
-                else:
-                    health_status["checks"]["configuration"] = {
-                        "status": "not_loaded",
-                        "message": "Configuration not loaded"
-                    }
-                    health_status["status"] = "unhealthy"
-            except Exception as e:
-                health_status["checks"]["configuration"] = {
-                    "status": "error",
-                    "message": f"Configuration error: {str(e)}"
-                }
-                health_status["status"] = "unhealthy"
+        # Check LLM provider
+        if call_handler:
+            health_status["checks"]["llm"] = {
+                "status": "configured",
+                "provider": call_handler.llm_provider,
+                "message": f"LLM provider: {call_handler.llm_provider}"
+            }
+        
+        # Check active calls
+        if call_handler:
+            active_calls = call_handler.get_active_calls()
+            health_status["checks"]["calls"] = {
+                "status": "active",
+                "count": len(active_calls),
+                "message": f"{len(active_calls)} active calls"
+            }
         
         # Set overall status code based on health status
         # 200: Service is operational (healthy or degraded but functional)
@@ -245,35 +209,23 @@ def health_check():
         }), 503
 
 
-@app.route('/config/reload', methods=['POST'])
-def reload_config():
-    """Reload configuration endpoint."""
+@app.route('/calls', methods=['GET'])
+def get_active_calls():
+    """Get active calls endpoint."""
     try:
-        if not config_manager:
-            return jsonify({"error": "Configuration manager not initialized"}), 500
+        if not call_handler:
+            return jsonify({"error": "CallHandler not initialized"}), 500
         
-        logger.info("Reloading configuration via API request")
-        config_data = config_manager.reload_config()
-        
-        # Generate updated statistics
-        stats = ConfigurationStats.from_config_data(config_data)
+        active_calls = call_handler.get_active_calls()
         
         return jsonify({
             "status": "success",
-            "message": "Configuration reloaded successfully",
-            "stats": {
-                "total_emotions": stats.total_emotions,
-                "total_responses": stats.total_responses,
-                "unique_figures": stats.unique_figures,
-                "emotions": config_manager.get_emotions()
-            }
+            "calls": active_calls,
+            "count": len(active_calls)
         }), 200
         
-    except ConfigurationError as e:
-        logger.error(f"Configuration reload failed: {e}")
-        return jsonify({"error": f"Configuration reload failed: {e}"}), 400
     except Exception as e:
-        logger.error(f"Unexpected error during config reload: {e}")
+        logger.error(f"Error getting active calls: {e}")
         return jsonify({"error": "Internal server error"}), 500
 
 
@@ -281,9 +233,20 @@ def setup_webhook_server():
     """Setup and configure the Flask webhook server."""
     global call_handler, vapi_client
     
-    # Initialize call handler with config manager for emotion responses
-    call_handler = CallHandler(config_manager=config_manager)
-    logger.info("CallHandler initialized with emotion detection")
+    # Get LLM configuration
+    llm_provider = os.getenv("LLM_PROVIDER", "openai")
+    llm_api_key = None
+    
+    if llm_provider == "openai":
+        llm_api_key = os.getenv("OPENAI_API_KEY")
+    elif llm_provider == "anthropic":
+        llm_api_key = os.getenv("ANTHROPIC_API_KEY")
+    elif llm_provider == "xai":
+        llm_api_key = os.getenv("XAI_API_KEY")
+    
+    # Initialize call handler with LLM configuration
+    call_handler = CallHandler(llm_api_key=llm_api_key, llm_provider=llm_provider)
+    logger.info(f"CallHandler initialized with {llm_provider} LLM")
     
     # Initialize Vapi client for call control
     vapi_client = VapiClient()
@@ -364,12 +327,6 @@ def main():
             logger.error("Environment validation failed. Exiting.")
             sys.exit(1)
         
-        # Load and validate configuration
-        logger.info("Loading and validating configuration...")
-        if not load_and_validate_configuration():
-            logger.error("Configuration validation failed. Exiting.")
-            sys.exit(1)
-        
         # Check Vapi connectivity
         logger.info("Checking Vapi API connectivity...")
         if not check_vapi_connectivity():
@@ -393,7 +350,7 @@ def main():
         port = os.getenv("WEBHOOK_PORT", "5000")
         logger.info(f"  - Webhook: http://{host}:{port}/webhook")
         logger.info(f"  - Health Check: http://{host}:{port}/health")
-        logger.info(f"  - Config Reload: http://{host}:{port}/config/reload")
+        logger.info(f"  - Active Calls: http://{host}:{port}/calls")
         logger.info("Press Ctrl+C to stop the server")
         
         # Keep the main thread alive
@@ -404,7 +361,7 @@ def main():
             handle_shutdown(signal.SIGINT, None)
             
     except Exception as e:
-        logger.error(f"Failed to start Voiceback: {str(e)}")
+        logger.error(f"Fatal error during startup: {str(e)}")
         sys.exit(1)
 
 

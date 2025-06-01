@@ -1,75 +1,136 @@
 """
-Call Handler - Vapi Webhook Processing
+Call Handler - Simple LLM-based Voice Agent
 
-This module handles incoming call webhooks from Vapi and manages call lifecycle
-for the Voiceback voice agent with emotion-based historical quote responses.
+This module handles incoming call webhooks from Vapi and provides
+simple LLM-powered responses for the Voiceback voice agent.
+
+User Journey:
+1) User speaks
+2) Vapi transcribes  
+3) Flask server receives the transcript
+4) LLM generates a response
+5) Flask returns the response to Vapi
+6) Vapi converts the text to speech
+7) User hears the response
 """
 
 from typing import Dict, Any, Optional
 from loguru import logger
 import datetime
 import threading
+import os
+import openai
+from openai import OpenAI
 
-# Import emotion detection and response building components
-try:
-    # Try relative imports first (when run as part of package)
-    from .emotion_detector import EmotionDetector
-    from .response_builder import ResponseBuilder
-    from .config_manager import ConfigManager, ConfigurationError
-except ImportError:
-    # Fall back to absolute imports (when run directly or from tests)
-    from emotion_detector import EmotionDetector
-    from response_builder import ResponseBuilder
-    from config_manager import ConfigManager, ConfigurationError
-
-# Default greeting for when emotion system is not available
-DEFAULT_GREETING = "Welcome to Voiceback. Thank you for calling. Goodbye."
-
-# Step 7: Hardcoded input for testing emotion-based responses
-TEST_EMOTION_INPUT = "I'm really anxious about my job interview tomorrow"
-
+# Simple crisis keywords for safety
+CRISIS_KEYWORDS = [
+    "kill myself", "suicide", "end it all", "hurt myself", "no point living",
+    "want to die", "better off dead", "take my life", "not worth living"
+]
 
 class CallHandler:
     """
-    Handles incoming call webhooks from Vapi and manages call lifecycle.
-
-    Manages call events like incoming calls, call answered, call ended,
-    and provides emotion-based historical quote responses.
+    Simple LLM-powered call handler for Vapi webhooks.
+    
+    Handles the complete voice agent flow using LLM responses.
     """
 
-    def __init__(self, config_manager: Optional[ConfigManager] = None, 
-                 enable_emotion_responses: bool = True,
-                 crisis_keywords_source: Optional[str] = None,
-                 default_emotion: str = "anxiety"):
+    def __init__(self, llm_api_key: Optional[str] = None, llm_provider: str = "openai"):
         """
-        Initialize the CallHandler with emotion detection capabilities.
+        Initialize the CallHandler with LLM capabilities.
         
         Args:
-            config_manager: Optional ConfigManager instance for emotion responses
-            enable_emotion_responses: If True, use emotion-based responses. If False, use default greeting.
-            crisis_keywords_source: Path to crisis keywords file or None for defaults  
-            default_emotion: Default emotion when input is unclear (default: "anxiety")
+            llm_api_key: API key for LLM provider (OpenAI, Anthropic, xAI)
+            llm_provider: LLM provider to use ("openai", "anthropic", "xai")
         """
         self.active_calls: Dict[str, Dict[str, Any]] = {}
         self._lock = threading.RLock()
         
-        # Initialize emotion processing components only if enabled
-        self.enable_emotion_responses = enable_emotion_responses
-        if enable_emotion_responses:
-            self.emotion_detector = EmotionDetector(
-                crisis_keywords_source=crisis_keywords_source,
-                default_emotion=default_emotion
-            )
-            self.response_builder = ResponseBuilder()
-            self.config_manager = config_manager
-        else:
-            self.emotion_detector = None
-            self.response_builder = None
-            self.config_manager = None
+        # Initialize LLM client
+        self.llm_provider = llm_provider
+        self.llm_api_key = llm_api_key or self._get_api_key_for_provider(llm_provider)
+        self.llm_client = None
         
-        logger.info(f"CallHandler initialized with emotion detection {'enabled' if enable_emotion_responses else 'disabled'}")
-        if enable_emotion_responses:
-            logger.info(f"Emotion system configured with default emotion: '{default_emotion}'")
+        # Initialize the appropriate LLM client
+        if self.llm_provider == "openai":
+            openai.api_key = self.llm_api_key
+            self.llm_client = OpenAI(api_key=self.llm_api_key)
+        elif self.llm_provider == "xai":
+            # xAI uses OpenAI-compatible API with custom base URL
+            self.llm_client = OpenAI(
+                api_key=self.llm_api_key,
+                base_url="https://api.x.ai/v1"
+            )
+        elif self.llm_provider == "anthropic":
+            # For future implementation
+            logger.warning("Anthropic support not yet implemented, falling back to OpenAI")
+            self.llm_provider = "openai"
+            self.llm_api_key = os.getenv("OPENAI_API_KEY")
+            self.llm_client = OpenAI(api_key=self.llm_api_key)
+        
+        # System prompt for the voice agent - Ancient Philosophy Guidance
+        self.system_prompt = """# Voice Agent Prompt: Ancient Philosophy Guidance
+
+You are a conversational voice agent that draws wisdom from ancient philosophers to provide supportive insights. Your role is to help users explore timeless perspectives on their current situations.
+
+## Core Instructions:
+
+**Response Style:**
+- Speak naturally and conversationally without repetitive disclaimers
+- Share relevant insights from ancient philosophers (Greek, Roman, Chinese, Indian, etc.)
+- Connect philosophical wisdom to the user's specific situation
+- Be supportive and encouraging while maintaining authenticity
+
+**Key Philosophers to Draw From:**
+- Stoics: Marcus Aurelius, Epictetus, Seneca
+- Ancient Greeks: Socrates, Aristotle, Plato
+- Eastern wisdom: Confucius, Lao Tzu, Buddha
+- Others as relevant: Epicurus, Diogenes, Heraclitus
+
+**Conversation Flow:**
+1. Listen to the user's situation or challenge
+2. Identify the core philosophical theme (resilience, purpose, relationships, mortality, etc.)
+3. Share 1-2 relevant insights from ancient thinkers who faced similar challenges
+4. Explain how they approached or resolved such situations
+5. Offer gentle reflection questions or practical wisdom
+
+**Important Guidelines:**
+- ONE brief disclaimer at the conversation's END: "Remember, this is shared for inspiration and reflection, not as professional advice."
+- DO NOT repeat disclaimers after every response
+- Focus on historical context: "When Seneca faced exile..." or "Marcus Aurelius wrote during the plague..."
+- Make philosophy accessible and personally relevant
+- Encourage the user's own wisdom and decision-making
+
+## Crisis Detection & Safety
+**CRITICAL**: If you detect ANY signs of immediate danger, self-harm, or crisis (keywords like "suicide," "kill myself," "end it all," "hurt myself," etc.), immediately provide:
+
+**For US users:**
+- "I'm really concerned about you right now. Please reach out to the Suicide & Crisis Lifeline at 988 - they're available 24/7 and have trained counselors ready to help."
+
+**For users in India:**
+- "I'm worried about you. Please contact AASRA at 9152987821 - they provide confidential support and are there to help you through this."
+
+**Always add:** "You don't have to go through this alone. There are people trained specifically to help with what you're experiencing."
+
+## Example Response Structure:
+"That reminds me of what Epictetus went through as a slave in Rome. He learned that while we can't control what happens to us, we can control how we respond. He used to say that our peace comes from focusing on what's actually within our power..."
+
+[Continue with natural conversation without disclaimers until the very end]
+
+## Remember
+Be the wise, ancient voice someone needs to hear today - connecting timeless wisdom with their present moment."""
+        
+        logger.info(f"CallHandler initialized with {llm_provider} LLM")
+
+    def _get_api_key_for_provider(self, provider: str) -> Optional[str]:
+        """Get the appropriate API key based on the provider."""
+        if provider == "openai":
+            return os.getenv("OPENAI_API_KEY")
+        elif provider == "xai":
+            return os.getenv("XAI_API_KEY")
+        elif provider == "anthropic":
+            return os.getenv("ANTHROPIC_API_KEY")
+        return None
 
     def handle_webhook(self, webhook_data: Dict[str, Any]) -> Dict[str, Any]:
         """
@@ -82,16 +143,13 @@ class CallHandler:
             Dict containing response data for Vapi
         """
         try:
-            # Handle different webhook formats
+            # Extract event type and call info
             if 'message' in webhook_data:
-                # New format: {"message": {"type": "assistant-request", "call":
-                # {...}}}
                 message = webhook_data['message']
                 event_type = message.get('type')
                 call_data = message.get('call', {})
                 call_id = call_data.get('id')
             else:
-                # Legacy format: {"type": "call.started", "call": {...}}
                 event_type = webhook_data.get('type')
                 call_data = webhook_data.get('call', {})
                 call_id = call_data.get('id')
@@ -102,17 +160,19 @@ class CallHandler:
 
             logger.info(f"Processing webhook: {event_type} for call {call_id}")
 
-            # Route webhook to appropriate handler based on event type
-            if event_type == 'assistant-request':
+            # Handle function calls (when user speaks and we need to respond)
+            if event_type == 'function-call':
+                return self._handle_function_call(call_id, webhook_data)
+            
+            # Handle assistant requests (initial call setup)
+            elif event_type == 'assistant-request':
                 return self._handle_assistant_request(call_id, webhook_data)
+            
+            # Handle other call events
             elif event_type == 'call.started':
                 return self._handle_call_started(call_id, webhook_data)
             elif event_type == 'call.ended':
                 return self._handle_call_ended(call_id, webhook_data)
-            elif event_type == 'speech.started':
-                return self._handle_speech_started(call_id, webhook_data)
-            elif event_type == 'speech.ended':
-                return self._handle_speech_ended(call_id, webhook_data)
             else:
                 logger.info(f"Unhandled webhook type: {event_type}")
                 return {"status": "received"}
@@ -121,15 +181,44 @@ class CallHandler:
             logger.error(f"Error processing webhook: {str(e)}")
             return {"status": "error", "message": "Webhook processing failed"}
 
-    def _handle_assistant_request(
-            self, call_id: str, webhook_data: Dict[str, Any]
-    ) -> Dict[str, Any]:
-        """Handle assistant request event.
-
-        This is when Vapi needs an assistant configuration for a call.
+    def _handle_function_call(self, call_id: str, webhook_data: Dict[str, Any]) -> Dict[str, Any]:
         """
+        Handle function call - this is where the magic happens!
+        User spoke → Vapi transcribed → We generate LLM response
+        """
+        try:
+            # Extract the user's transcript from the webhook
+            message = webhook_data.get('message', {})
+            function_call = message.get('functionCall', {})
+            parameters = function_call.get('parameters', {})
+            user_transcript = parameters.get('transcript', '')
+
+            logger.info(f"User transcript for call {call_id}: '{user_transcript}'")
+
+            # Check for crisis keywords first
+            if self._is_crisis(user_transcript):
+                response = self._generate_crisis_response()
+            else:
+                # Generate LLM response using the configured provider
+                response = self._generate_llm_response(user_transcript)
+
+            logger.info(f"Generated response for call {call_id}: '{response[:100]}...'")
+
+            # Return the response to Vapi
+            return {
+                "result": response
+            }
+
+        except Exception as e:
+            logger.error(f"Error handling function call for {call_id}: {e}")
+            return {
+                "result": "I'm sorry, I'm having trouble understanding right now. Thank you for calling Voiceback."
+            }
+
+    def _handle_assistant_request(self, call_id: str, webhook_data: Dict[str, Any]) -> Dict[str, Any]:
+        """Handle assistant request - set up the call."""
         with self._lock:
-            # Extract call information
+            # Store call info
             if 'message' in webhook_data:
                 call_data = webhook_data['message'].get('call', {})
             else:
@@ -144,291 +233,142 @@ class CallHandler:
             }
 
             self.active_calls[call_id] = call_info
-            from_number = call_info.get('from_number')
-            logger.info(
-                f"Assistant requested for call: {call_id} from {from_number}")
+            logger.info(f"Assistant requested for call: {call_id}")
 
-            # Choose response type based on emotion detection setting
-            if self.enable_emotion_responses:
-                voice_response = self._generate_emotion_response(call_id)
-            else:
-                voice_response = DEFAULT_GREETING
-                
-            return self.send_voice_message(call_id, voice_response)
+            # Return assistant configuration
+            return self._create_assistant_config()
 
-    def _handle_call_started(
-            self, call_id: str, webhook_data: Dict[str, Any]
-    ) -> Dict[str, Any]:
+    def _handle_call_started(self, call_id: str, webhook_data: Dict[str, Any]) -> Dict[str, Any]:
         """Handle call started event."""
         with self._lock:
-            call_data = webhook_data.get('call', {})
-            customer = call_data.get('customer', {})
-            phone_number = call_data.get('phoneNumber', {})
+            logger.info(f"Call started: {call_id}")
+            return {"status": "received"}
 
-            call_info = {
-                'id': call_id,
-                'started_at': datetime.datetime.now().isoformat(),
-                'status': 'active',
-                'from_number': customer.get('number'),
-                'to_number': phone_number.get('number')
-            }
-
-            self.active_calls[call_id] = call_info
-            from_number = call_info.get('from_number')
-            logger.info(f"Call started: {call_id} from {from_number}")
-
-            # Choose response type based on emotion detection setting
-            if self.enable_emotion_responses:
-                voice_response = self._generate_emotion_response(call_id)
-            else:
-                voice_response = DEFAULT_GREETING
-                
-            return self.send_voice_message(call_id, voice_response)
-
-    def _handle_call_ended(
-            self, call_id: str, webhook_data: Dict[str, Any]
-    ) -> Dict[str, Any]:
+    def _handle_call_ended(self, call_id: str, webhook_data: Dict[str, Any]) -> Dict[str, Any]:
         """Handle call ended event."""
         with self._lock:
             if call_id in self.active_calls:
                 call_info = self.active_calls[call_id]
                 call_info['ended_at'] = datetime.datetime.now().isoformat()
                 call_info['status'] = 'ended'
-
-                # Log call duration
-                if 'started_at' in call_info:
-                    start_time_str = call_info['started_at']
-                    start_time = datetime.datetime.fromisoformat(
-                        start_time_str)
-                    end_time = datetime.datetime.now()
-                    duration = (end_time - start_time).total_seconds()
-                    call_info['duration_seconds'] = duration
-                    logger.info(
-                        f"Call ended: {call_id}, duration: {duration:.1f}s")
-
-                # Remove from active calls
-                del self.active_calls[call_id]
-            else:
-                logger.warning(f"Call ended event for unknown call: {call_id}")
-
+                
+                # Calculate call duration
+                start_time = datetime.datetime.fromisoformat(call_info['started_at'])
+                end_time = datetime.datetime.fromisoformat(call_info['ended_at'])
+                duration = (end_time - start_time).total_seconds()
+                call_info['duration'] = duration
+                
+                logger.info(f"Call ended: {call_id}, duration: {duration:.2f}s")
+            
             return {"status": "received"}
 
-    def _handle_speech_started(
-            self, call_id: str, webhook_data: Dict[str, Any]
-    ) -> Dict[str, Any]:
-        """Handle speech started event."""
-        logger.info(f"Speech started on call: {call_id}")
-        return {"status": "received"}
-
-    def _handle_speech_ended(
-            self, call_id: str, webhook_data: Dict[str, Any]
-    ) -> Dict[str, Any]:
-        """Handle speech ended event."""
-        logger.info(f"Speech ended on call: {call_id}")
-        return {"status": "received"}
-
-    def send_voice_message(self, call_id: str, message: str = None) -> Dict[str, Any]:
+    def _generate_llm_response(self, user_input: str) -> str:
         """
-        Send a voice message for the specified call using assistant configuration.
+        Generate response using the configured LLM provider.
         
         Args:
-            call_id: The call ID to send the message to
-            message: Optional message override. If not provided, uses default greeting.
+            user_input: What the user said (transcription from Vapi STT)
             
         Returns:
-            Assistant configuration for voice delivery
+            LLM-generated response (to be sent to Vapi TTS)
         """
-        if message is None:
-            greeting = DEFAULT_GREETING
-        else:
-            greeting = message
-        
         try:
-            # Create assistant configuration for voice delivery
-            assistant_config = self.create_assistant_config(greeting)
-            
-            # Log voice delivery
-            logger.info(f"Voice message configured for call {call_id}: {greeting[:50]}...")
-            
-            return assistant_config
-            
+            if self.llm_provider in ["openai", "xai"] and self.llm_client:
+                # Determine the model to use
+                if self.llm_provider == "xai":
+                    model = "grok-3"  # Use Grok-3 for xAI
+                else:
+                    model = "gpt-4o-mini"  # Use GPT-4o-mini for OpenAI
+                
+                logger.info(f"Generating response using {self.llm_provider} with model {model}")
+                
+                completion = self.llm_client.chat.completions.create(
+                    model=model,
+                    messages=[
+                        {"role": "system", "content": self.system_prompt},
+                        {"role": "user", "content": user_input}
+                    ],
+                    max_tokens=200,  # Keep responses concise for voice
+                    temperature=0.7  # Natural but not too creative
+                )
+                
+                response = completion.choices[0].message.content.strip()
+                logger.info(f"Successfully generated {len(response)} character response using {self.llm_provider}")
+                return response
+                
+            else:
+                # Fallback response if LLM client not available
+                logger.warning(f"LLM client not available for provider {self.llm_provider}, using fallback")
+                return "I hear you, and I want you to know that you're not alone. Whatever you're going through, there are people who care. Remember, this is for inspiration and support, not professional advice. Thank you for calling Voiceback."
+                
         except Exception as e:
-            logger.error(f"Failed to send voice message for call {call_id}: {str(e)}")
-            raise
+            logger.error(f"Error generating LLM response with {self.llm_provider}: {e}")
+            return "I'm here to listen and support you. You're stronger than you know. Remember, this is for inspiration and support, not professional advice. Thank you for calling Voiceback."
 
-    def create_assistant_config(self, message: str) -> Dict[str, Any]:
-        """
-        Create assistant configuration for voice delivery.
-        
-        Args:
-            message: The message to be delivered by the assistant
-            
-        Returns:
-            Assistant configuration dictionary
-        """
-        # Default greeting if no message provided
-        if not message:
-            message = DEFAULT_GREETING
-        
-        # Create assistant configuration
-        assistant_config = {
+    def _is_crisis(self, text: str) -> bool:
+        """Check if user input contains crisis keywords."""
+        text_lower = text.lower()
+        return any(keyword in text_lower for keyword in CRISIS_KEYWORDS)
+
+    def _generate_crisis_response(self) -> str:
+        """Generate appropriate crisis response with resources based on system prompt guidance."""
+        return """I'm really concerned about you right now. You're not alone, and there are people who want to help.
+
+If you're in the US, please reach out to the Suicide & Crisis Lifeline at 988 - they're available 24/7 and have trained counselors ready to help.
+
+If you're in India, please contact AASRA at 9152987821 - they provide confidential support and are there to help you through this.
+
+You don't have to go through this alone. There are people trained specifically to help with what you're experiencing. Remember, this is for inspiration and support, not professional advice."""
+
+    def _create_assistant_config(self) -> Dict[str, Any]:
+        """Create assistant configuration for Vapi."""
+        return {
             "assistant": {
-                "firstMessage": message,
+                "firstMessage": "Hello! I'm here to share wisdom from ancient philosophers who faced challenges much like yours. What's on your mind today?",
                 "model": {
                     "provider": "openai",
                     "model": "gpt-4o-mini",
                     "messages": [
                         {
                             "role": "system",
-                            "content": (
-                                "You are a voice agent for Voiceback. "
-                                "Deliver the greeting message and end the call gracefully. "
-                                "Keep responses brief and professional."
-                            )
+                            "content": self.system_prompt
+                        }
+                    ],
+                    "functions": [
+                        {
+                            "name": "respond_to_user",
+                            "description": "Respond to what the user said",
+                            "parameters": {
+                                "type": "object",
+                                "properties": {
+                                    "transcript": {
+                                        "type": "string",
+                                        "description": "What the user said"
+                                    }
+                                },
+                                "required": ["transcript"]
+                            }
                         }
                     ]
                 },
                 "voice": {
                     "provider": "openai",
-                    "voiceId": "alloy"
+                    "voiceId": "alloy"  # Warm, friendly voice
                 },
-                "endCallMessage": "Thank you for calling Voiceback. Goodbye.",
-                "endCallPhrases": ["goodbye", "thank you", "end call"],
+                "endCallMessage": "May you find wisdom and peace on your journey. Remember, this is shared for inspiration and reflection, not as professional advice. Farewell.",
+                "endCallPhrases": ["goodbye", "thank you", "end call", "bye"],
                 "recordingEnabled": False,
-                "silenceTimeoutSeconds": 10,
-                "maxDurationSeconds": 30
+                "silenceTimeoutSeconds": 30,
+                "maxDurationSeconds": 300  # 5 minute max
             }
         }
-        
-        return assistant_config
-
-    def answer_call(self, call_id: str) -> Dict[str, Any]:
-        """
-        Answer an incoming call.
-
-        Args:
-            call_id: The ID of the call to answer
-
-        Returns:
-            Dict containing response for Vapi
-        """
-        with self._lock:
-            if call_id not in self.active_calls:
-                logger.error(f"Cannot answer unknown call: {call_id}")
-                return {"status": "error", "message": "Call not found"}
-
-            logger.info(f"Answering call: {call_id}")
-
-            # Update call status and timestamp
-            call_info = self.active_calls[call_id]
-            call_info["status"] = "active"
-            call_info["answered_at"] = datetime.datetime.now().isoformat()
-
-            return {"status": "success"}
-
-    def end_call(self, call_id: str) -> Dict[str, Any]:
-        """
-        End an active call.
-
-        Args:
-            call_id: The ID of the call to end
-
-        Returns:
-            Dict containing response for Vapi
-        """
-        with self._lock:
-            if call_id not in self.active_calls:
-                logger.warning(f"Cannot end unknown call: {call_id}")
-                return {"status": "error", "message": "Call not found"}
-
-            logger.info(f"Ending call: {call_id}")
-
-            # Return instruction to end the call
-            return {
-                "status": "success",
-                "instruction": {
-                    "type": "end_call"
-                }
-            }
 
     def get_active_calls(self) -> Dict[str, Dict[str, Any]]:
-        """
-        Get all currently active calls.
-
-        Returns:
-            Dict of active call information
-        """
+        """Get all currently active calls."""
         with self._lock:
             return self.active_calls.copy()
 
     def get_call_info(self, call_id: str) -> Optional[Dict[str, Any]]:
-        """
-        Get information about a specific call.
-
-        Args:
-            call_id: The ID of the call
-
-        Returns:
-            Call information dict or None if not found
-        """
+        """Get information about a specific call."""
         with self._lock:
             return self.active_calls.get(call_id)
-
-    def _generate_emotion_response(self, call_id: str) -> str:
-        """
-        Generate an emotion-based historical quote response.
-        
-        Args:
-            call_id: The call ID for logging
-            
-        Returns:
-            Formatted voice response with historical quote
-        """
-        try:
-            # Check if emotion detection is enabled
-            if not self.enable_emotion_responses or not self.emotion_detector or not self.response_builder:
-                logger.warning(f"Emotion detection disabled for call {call_id}, using default greeting")
-                return DEFAULT_GREETING
-            
-            # Step 7: Use hardcoded anxious input for testing
-            user_input = TEST_EMOTION_INPUT
-            logger.info(f"Processing emotion input for call {call_id}: '{user_input}'")
-            
-            # Detect emotion from user input
-            emotion = self.emotion_detector.detect_emotion(user_input)
-            logger.info(f"Detected emotion '{emotion}' for call {call_id}")
-            
-            # Handle crisis case
-            if emotion == "crisis":
-                logger.warning(f"Crisis detected in call {call_id}")
-                response = self.response_builder.build_response(emotion, None, user_input)
-                return self.response_builder.add_disclaimer(response)
-            
-            # Get response data from configuration
-            if self.config_manager:
-                try:
-                    response_data = self.config_manager.get_random_response(emotion)
-                    if response_data:
-                        logger.info(f"Found response for emotion '{emotion}' using figure '{response_data.get('figure')}'")
-                    else:
-                        logger.warning(f"No response data found for emotion '{emotion}'")
-                except ConfigurationError as e:
-                    logger.error(f"Configuration error getting response for '{emotion}': {e}")
-                    response_data = None
-            else:
-                logger.warning("No config manager available for emotion responses")
-                response_data = None
-            
-            # Build the response
-            response = self.response_builder.build_response(emotion, response_data, user_input)
-            
-            # Add disclaimer and return
-            final_response = self.response_builder.add_disclaimer(response)
-            
-            logger.info(f"Generated emotion response for call {call_id}: {final_response[:100]}...")
-            return final_response
-            
-        except Exception as e:
-            logger.error(f"Error generating emotion response for call {call_id}: {e}")
-            # Fallback to default greeting
-            return DEFAULT_GREETING

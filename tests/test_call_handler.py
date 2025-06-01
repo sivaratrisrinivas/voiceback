@@ -1,348 +1,382 @@
 """
-Tests for CallHandler - Webhook Processing and Call Lifecycle
+Tests for CallHandler - Simple LLM-based Voice Agent
 
-Tests webhook handling, call management, and integration functionality
-for the Voiceback voice agent.
+Tests the simplified webhook handling and LLM integration for voice responses.
 """
 
 import pytest
-import sys
-from pathlib import Path
-from unittest.mock import Mock, patch
+from unittest.mock import Mock, patch, MagicMock
 import datetime
-
-# Add src directory to path for imports
-sys.path.insert(0, str(Path(__file__).parent.parent / "src"))
-
-from call_handler import CallHandler, DEFAULT_GREETING
+from src.call_handler import CallHandler
 
 
 class TestCallHandler:
-    """Test suite for CallHandler class."""
-    
+    """Test the simple LLM-based CallHandler."""
+
     def setup_method(self):
         """Set up test fixtures."""
-        # Disable emotion responses for backward compatibility with existing tests
-        self.call_handler = CallHandler(enable_emotion_responses=False)
-        self.sample_call_id = "call_12345"
-    
-    def test_init(self):
+        self.handler = CallHandler(llm_api_key="test-key-123")
+
+    def test_initialization(self):
         """Test CallHandler initialization."""
-        handler = CallHandler()
-        assert handler.active_calls == {}
-        assert hasattr(handler, 'active_calls')
-    
-    def test_handle_webhook_missing_call_id(self):
-        """Test webhook handling with missing call ID."""
+        assert self.handler.llm_provider == "openai"
+        assert self.handler.llm_api_key == "test-key-123"
+        assert isinstance(self.handler.active_calls, dict)
+        assert len(self.handler.active_calls) == 0
+        assert self.handler.llm_client is not None
+
+    def test_initialization_with_xai(self):
+        """Test CallHandler initialization with xAI provider."""
+        handler = CallHandler(llm_api_key="xai-test-key", llm_provider="xai")
+        assert handler.llm_provider == "xai"
+        assert handler.llm_api_key == "xai-test-key"
+        assert handler.llm_client is not None
+
+    def test_initialization_with_env_key(self):
+        """Test initialization uses environment variable if no key provided."""
+        with patch.dict('os.environ', {'OPENAI_API_KEY': 'env-key-456'}):
+            handler = CallHandler()
+            assert handler.llm_api_key == 'env-key-456'
+
+    def test_initialization_with_xai_env_key(self):
+        """Test initialization with xAI using environment variable."""
+        with patch.dict('os.environ', {'XAI_API_KEY': 'xai-env-key-789'}):
+            handler = CallHandler(llm_provider="xai")
+            assert handler.llm_api_key == 'xai-env-key-789'
+            assert handler.llm_provider == "xai"
+
+    def test_handle_webhook_assistant_request(self):
+        """Test handling assistant request webhook."""
         webhook_data = {
-            "type": "call.started",
-            "call": {}  # Missing 'id' field
+            'message': {
+                'type': 'assistant-request',
+                'call': {
+                    'id': 'call-123',
+                    'customer': {'number': '+1234567890'},
+                    'phoneNumber': {'number': '+0987654321'}
+                }
+            }
         }
+
+        result = self.handler.handle_webhook(webhook_data)
+
+        # Check assistant config is returned
+        assert 'assistant' in result
+        assert result['assistant']['firstMessage']
+        assert result['assistant']['model']['provider'] == 'openai'
         
-        response = self.call_handler.handle_webhook(webhook_data)
+        # Check call is tracked
+        assert 'call-123' in self.handler.active_calls
+        call_info = self.handler.active_calls['call-123']
+        assert call_info['id'] == 'call-123'
+        assert call_info['status'] == 'active'
+
+    def test_handle_function_call_normal_response(self):
+        """Test handling function call with normal user input."""
+        # Mock the LLM client response for the new architecture
+        mock_completion = Mock()
+        mock_completion.choices = [Mock()]
+        mock_completion.choices[0].message.content = "I understand you're feeling anxious. That's completely normal before an interview. Remember, this is for inspiration and support, not professional advice. Thank you for calling Voiceback."
         
-        assert response["status"] == "error"
-        assert "Missing call ID" in response["message"]
-    
-    def test_handle_webhook_invalid_json(self):
-        """Test webhook handling with invalid data."""
-        webhook_data = None
-        
-        # Should handle gracefully and return error response
-        response = self.call_handler.handle_webhook(webhook_data)
-        
-        assert response["status"] == "error"
-        assert "Webhook processing failed" in response["message"]
-    
+        with patch.object(self.handler.llm_client, 'chat') as mock_chat:
+            mock_chat.completions.create.return_value = mock_completion
+
+            webhook_data = {
+                'message': {
+                    'type': 'function-call',
+                    'functionCall': {
+                        'parameters': {
+                            'transcript': "I'm really nervous about my job interview tomorrow"
+                        }
+                    },
+                    'call': {'id': 'call-123'}
+                }
+            }
+
+            result = self.handler.handle_webhook(webhook_data)
+
+            # Check response format
+            assert 'result' in result
+            assert 'anxious' in result['result'] or 'nervous' in result['result']
+            assert 'Thank you for calling Voiceback' in result['result']
+
+            # Check LLM client was called correctly
+            mock_chat.completions.create.assert_called_once()
+            call_args = mock_chat.completions.create.call_args
+            assert call_args[1]['model'] == 'gpt-4o-mini'
+            assert len(call_args[1]['messages']) == 2
+            assert call_args[1]['messages'][0]['role'] == 'system'
+            assert call_args[1]['messages'][1]['role'] == 'user'
+
+    def test_handle_function_call_crisis_response(self):
+        """Test handling function call with crisis keywords."""
+        webhook_data = {
+            'message': {
+                'type': 'function-call',
+                'functionCall': {
+                    'parameters': {
+                        'transcript': "I want to kill myself, there's no point"
+                    }
+                },
+                'call': {'id': 'call-123'}
+            }
+        }
+
+        result = self.handler.handle_webhook(webhook_data)
+
+        # Check crisis response
+        assert 'result' in result
+        assert '988' in result['result']  # US suicide hotline
+        assert 'AASRA' in result['result']  # Indian crisis line
+        assert 'not alone' in result['result']
+
     def test_handle_call_started(self):
         """Test handling call started event."""
         webhook_data = {
-            "type": "call.started",
-            "call": {
-                "id": self.sample_call_id,
-                "customer": {"number": "+1234567890"},
-                "phoneNumber": {"number": "+0987654321"}
+            'type': 'call.started',
+            'call': {
+                'id': 'call-456',
+                'customer': {'number': '+1234567890'}
             }
         }
+
+        result = self.handler.handle_webhook(webhook_data)
         
-        response = self.call_handler.handle_webhook(webhook_data)
-        
-        # Step 4: Should now return assistant configuration for greeting
-        assert "assistant" in response
-        assert response["assistant"]["firstMessage"] == DEFAULT_GREETING
-        
-        # Call should be in active calls initially
-        assert self.sample_call_id in self.call_handler.active_calls
-        call_info = self.call_handler.active_calls[self.sample_call_id]
-        assert call_info["status"] == "active"
-        assert call_info["from_number"] == "+1234567890"
-        assert call_info["to_number"] == "+0987654321"
-    
+        assert result == {"status": "received"}
+
     def test_handle_call_ended(self):
         """Test handling call ended event."""
-        # First start a call
-        start_data = {
-            "type": "call.started",
-            "call": {
-                "id": self.sample_call_id,
-                "customer": {"number": "+1234567890"},
-                "phoneNumber": {"number": "+0987654321"}
+        # First set up an active call
+        call_id = 'call-789'
+        self.handler.active_calls[call_id] = {
+            'id': call_id,
+            'started_at': datetime.datetime.now().isoformat(),
+            'status': 'active'
+        }
+
+        webhook_data = {
+            'type': 'call.ended',
+            'call': {'id': call_id}
+        }
+
+        result = self.handler.handle_webhook(webhook_data)
+        
+        assert result == {"status": "received"}
+        
+        # Check call info was updated
+        call_info = self.handler.active_calls[call_id]
+        assert call_info['status'] == 'ended'
+        assert 'ended_at' in call_info
+        assert 'duration' in call_info
+
+    def test_handle_webhook_missing_call_id(self):
+        """Test handling webhook without call ID."""
+        webhook_data = {
+            'message': {
+                'type': 'assistant-request',
+                'call': {}  # No id field
             }
         }
-        self.call_handler.handle_webhook(start_data)
+
+        result = self.handler.handle_webhook(webhook_data)
         
-        # Then end the call
-        end_data = {
-            "type": "call.ended",
-            "call": {"id": self.sample_call_id}
-        }
-        
-        response = self.call_handler.handle_webhook(end_data)
-        
-        assert response["status"] == "received"
-        # Call should be removed from active calls
-        assert self.sample_call_id not in self.call_handler.active_calls
-    
-    def test_handle_call_ended_unknown_call(self):
-        """Test handling call ended for unknown call."""
+        assert result['status'] == 'error'
+        assert 'Missing call ID' in result['message']
+
+    def test_handle_webhook_unknown_type(self):
+        """Test handling webhook with unknown event type."""
         webhook_data = {
-            "type": "call.ended",
-            "call": {"id": "unknown_call_id"}
+            'message': {
+                'type': 'unknown-event',
+                'call': {'id': 'call-999'}
+            }
         }
+
+        result = self.handler.handle_webhook(webhook_data)
         
-        response = self.call_handler.handle_webhook(webhook_data)
+        assert result == {"status": "received"}
+
+    def test_is_crisis_detection(self):
+        """Test crisis keyword detection."""
+        # Test positive cases
+        assert self.handler._is_crisis("I want to kill myself")
+        assert self.handler._is_crisis("thinking about suicide")
+        assert self.handler._is_crisis("I'm going to end it all")
+        assert self.handler._is_crisis("no point living anymore")
         
-        assert response["status"] == "received"
-    
-    def test_handle_speech_events(self):
-        """Test handling speech started and ended events."""
-        speech_started_data = {
-            "type": "speech.started",
-            "call": {"id": self.sample_call_id}
-        }
+        # Test negative cases
+        assert not self.handler._is_crisis("I'm feeling sad today")
+        assert not self.handler._is_crisis("having a bad day")
+        assert not self.handler._is_crisis("need some support")
+
+    def test_generate_crisis_response(self):
+        """Test crisis response generation."""
+        response = self.handler._generate_crisis_response()
         
-        speech_ended_data = {
-            "type": "speech.ended",
-            "call": {"id": self.sample_call_id}
-        }
+        assert '988' in response  # US hotline
+        assert 'AASRA' in response  # Indian hotline
+        assert 'not alone' in response
+        assert 'trained specifically to help' in response
+
+    def test_generate_llm_response_success(self):
+        """Test successful LLM response generation."""
+        mock_completion = Mock()
+        mock_completion.choices = [Mock()]
+        mock_completion.choices[0].message.content = "Great response from AI"
         
-        response1 = self.call_handler.handle_webhook(speech_started_data)
-        response2 = self.call_handler.handle_webhook(speech_ended_data)
+        with patch.object(self.handler.llm_client, 'chat') as mock_chat:
+            mock_chat.completions.create.return_value = mock_completion
+            
+            result = self.handler._generate_llm_response("test input")
+            
+            assert result == "Great response from AI"
+            mock_chat.completions.create.assert_called_once()
+
+    @patch('openai.ChatCompletion.create')
+    def test_generate_llm_response_failure(self, mock_openai):
+        """Test LLM response generation with API failure."""
+        mock_openai.side_effect = Exception("API Error")
+
+        result = self.handler._generate_llm_response("test input")
         
-        assert response1["status"] == "received"
-        assert response2["status"] == "received"
-    
-    def test_handle_unhandled_webhook_type(self):
-        """Test handling unknown webhook types."""
-        webhook_data = {
-            "type": "unknown.event",
-            "call": {"id": self.sample_call_id}
-        }
-        
-        response = self.call_handler.handle_webhook(webhook_data)
-        
-        assert response["status"] == "received"
-    
-    def test_handle_webhook_with_missing_fields(self):
-        """Test webhook handling with missing optional fields."""
-        # Pass data with missing customer and phoneNumber fields
-        webhook_data = {
-            "type": "call.started",
-            "call": {"id": self.sample_call_id}
-            # Missing customer and phoneNumber - should handle gracefully
-        }
-        
-        response = self.call_handler.handle_webhook(webhook_data)
-        
-        # Step 4: Should return assistant configuration for greeting
-        assert "assistant" in response
-        assert response["assistant"]["firstMessage"] == DEFAULT_GREETING
-        
-        # Call should be in active calls with None values for missing fields
-        assert self.sample_call_id in self.call_handler.active_calls
-        call_info = self.call_handler.active_calls[self.sample_call_id]
-        assert call_info["from_number"] is None
-        assert call_info["to_number"] is None
-    
-    def test_answer_call_success(self):
-        """Test answering a call successfully."""
-        # Add call to active calls first
-        self.call_handler.active_calls[self.sample_call_id] = {
-            "id": self.sample_call_id,
-            "status": "ringing"
-        }
-        
-        response = self.call_handler.answer_call(self.sample_call_id)
-        
-        # Step 4: answer_call now returns simple acknowledgment since voice delivery handles the flow
-        assert response["status"] == "success"
-    
-    def test_answer_call_unknown(self):
-        """Test answering unknown call."""
-        response = self.call_handler.answer_call("unknown_call")
-        
-        assert response["status"] == "error"
-        assert "Call not found" in response["message"]
-    
-    def test_end_call_success(self):
-        """Test ending a call successfully."""
-        # Add call to active calls first
-        self.call_handler.active_calls[self.sample_call_id] = {
-            "id": self.sample_call_id,
-            "status": "active"
-        }
-        
-        response = self.call_handler.end_call(self.sample_call_id)
-        
-        assert response["status"] == "success"
-        assert response["instruction"]["type"] == "end_call"
-    
-    def test_end_call_unknown(self):
-        """Test ending unknown call."""
-        response = self.call_handler.end_call("unknown_call")
-        
-        assert response["status"] == "error"
-        assert "Call not found" in response["message"]
-    
+        # Should return fallback response
+        assert "I'm here to listen and support you" in result
+        assert "Thank you for calling Voiceback" in result
+
     def test_get_active_calls(self):
         """Test getting active calls."""
-        # Add some calls
-        call1_id = "call_1"
-        call2_id = "call_2"
-        
-        self.call_handler.active_calls[call1_id] = {"id": call1_id, "status": "active"}
-        self.call_handler.active_calls[call2_id] = {"id": call2_id, "status": "active"}
-        
-        active_calls = self.call_handler.get_active_calls()
+        # Add some test calls
+        self.handler.active_calls['call-1'] = {'id': 'call-1', 'status': 'active'}
+        self.handler.active_calls['call-2'] = {'id': 'call-2', 'status': 'active'}
+
+        active_calls = self.handler.get_active_calls()
         
         assert len(active_calls) == 2
-        assert call1_id in active_calls
-        assert call2_id in active_calls
+        assert 'call-1' in active_calls
+        assert 'call-2' in active_calls
         
-        # Should return a copy, not the original
-        assert active_calls is not self.call_handler.active_calls
-    
+        # Should be a copy, not reference
+        active_calls['call-3'] = {'id': 'call-3'}
+        assert 'call-3' not in self.handler.active_calls
+
     def test_get_call_info(self):
-        """Test getting call information."""
-        call_info = {"id": self.sample_call_id, "status": "active", "from_number": "+1234567890"}
-        self.call_handler.active_calls[self.sample_call_id] = call_info
-        
-        retrieved_info = self.call_handler.get_call_info(self.sample_call_id)
-        
-        assert retrieved_info == call_info
-        
-        # Test unknown call
-        unknown_info = self.call_handler.get_call_info("unknown_call")
-        assert unknown_info is None
+        """Test getting specific call info."""
+        test_call = {'id': 'call-test', 'status': 'active'}
+        self.handler.active_calls['call-test'] = test_call
 
+        # Existing call
+        result = self.handler.get_call_info('call-test')
+        assert result == test_call
 
-class TestCallHandlerIntegration:
-    """Integration tests for CallHandler with realistic scenarios."""
-    
-    def setup_method(self):
-        """Set up test fixtures for integration tests."""
-        # Disable emotion responses for backward compatibility with existing tests
-        self.call_handler = CallHandler(enable_emotion_responses=False)
-    
-    def test_complete_call_lifecycle(self):
-        """Test a complete call from start to end."""
-        call_id = "integration_call_123"
-        
-        # 1. Call started
-        start_webhook = {
-            "type": "call.started",
-            "call": {
-                "id": call_id,
-                "customer": {"number": "+1555123456"},
-                "phoneNumber": {"number": "+1555987654"}
-            }
-        }
-        
-        start_response = self.call_handler.handle_webhook(start_webhook)
-        
-        # Step 4: Should return assistant configuration for voice greeting
-        assert "assistant" in start_response
-        assert start_response["assistant"]["firstMessage"] == DEFAULT_GREETING
-        assert call_id in self.call_handler.active_calls
-        
-        # 2. Call ended
-        end_webhook = {
-            "type": "call.ended",
-            "call": {"id": call_id}
-        }
-        
-        end_response = self.call_handler.handle_webhook(end_webhook)
-        
-        assert end_response["status"] == "received"
-        assert call_id not in self.call_handler.active_calls
-    
-    def test_multiple_concurrent_calls(self):
-        """Test handling multiple calls simultaneously."""
-        call_ids = ["call_1", "call_2", "call_3"]
-        
-        # Start multiple calls
-        for call_id in call_ids:
-            webhook = {
-                "type": "call.started",
-                "call": {
-                    "id": call_id,
-                    "customer": {"number": f"+155512{call_id[-1]}456"},
-                    "phoneNumber": {"number": "+1555987654"}
-                }
-            }
-            response = self.call_handler.handle_webhook(webhook)
-            # Step 4: Should return assistant configuration for voice greeting
-            assert "assistant" in response
-            assert response["assistant"]["firstMessage"] == DEFAULT_GREETING
-        
-        # All calls should be active
-        active_calls = self.call_handler.get_active_calls()
-        assert len(active_calls) == 3
-        
-        # End calls one by one
-        for call_id in call_ids:
-            end_webhook = {
-                "type": "call.ended",
-                "call": {"id": call_id}
-            }
-            self.call_handler.handle_webhook(end_webhook)
-        
-        # No calls should be active
-        assert len(self.call_handler.get_active_calls()) == 0
+        # Non-existing call
+        result = self.handler.get_call_info('call-nonexistent')
+        assert result is None
 
-    @patch('call_handler.datetime')
-    def test_call_duration_tracking(self, mock_datetime):
-        """Test that call duration is tracked correctly."""
-        call_id = "duration_test_call"
+    def test_create_assistant_config(self):
+        """Test assistant configuration creation."""
+        config = self.handler._create_assistant_config()
         
-        # Mock datetime for consistent testing
-        start_time = datetime.datetime(2024, 1, 1, 12, 0, 0)
-        end_time = datetime.datetime(2024, 1, 1, 12, 0, 30)  # 30 seconds later
+        assert 'assistant' in config
+        assistant = config['assistant']
         
-        mock_datetime.datetime.now.side_effect = [start_time, end_time, end_time]
-        mock_datetime.datetime.fromisoformat.return_value = start_time
+        # Check required fields
+        assert 'firstMessage' in assistant
+        assert 'model' in assistant
+        assert 'voice' in assistant
+        assert 'endCallMessage' in assistant
         
-        # Start call
-        start_webhook = {
-            "type": "call.started",
-            "call": {
-                "id": call_id,
-                "customer": {"number": "+1234567890"},
-                "phoneNumber": {"number": "+0987654321"}
+        # Check model configuration
+        model = assistant['model']
+        assert model['provider'] == 'openai'
+        assert model['model'] == 'gpt-4o-mini'
+        assert 'functions' in model
+        assert len(model['functions']) == 1
+        
+        # Check function definition
+        func = model['functions'][0]
+        assert func['name'] == 'respond_to_user'
+        assert 'transcript' in func['parameters']['properties']
+
+    def test_legacy_webhook_format(self):
+        """Test handling legacy webhook format."""
+        webhook_data = {
+            'type': 'call.started',  # Legacy format without 'message' wrapper
+            'call': {
+                'id': 'call-legacy',
+                'customer': {'number': '+1234567890'}
             }
         }
-        self.call_handler.handle_webhook(start_webhook)
+
+        result = self.handler.handle_webhook(webhook_data)
         
-        # End call
-        end_webhook = {
-            "type": "call.ended",
-            "call": {"id": call_id}
+        assert result == {"status": "received"}
+
+    @patch('openai.ChatCompletion.create')
+    def test_handle_function_call_error_handling(self, mock_openai):
+        """Test function call error handling."""
+        mock_openai.side_effect = Exception("API Error")
+
+        webhook_data = {
+            'message': {
+                'type': 'function-call',
+                'functionCall': {
+                    'parameters': {
+                        'transcript': "test input"
+                    }
+                },
+                'call': {'id': 'call-error'}
+            }
         }
-        self.call_handler.handle_webhook(end_webhook)
+
+        result = self.handler.handle_webhook(webhook_data)
+
+        # Should handle error gracefully
+        assert 'result' in result
+        assert "I'm here to listen and support you" in result['result']
+
+    def test_handle_function_call_missing_transcript(self):
+        """Test function call with missing transcript."""
+        webhook_data = {
+            'message': {
+                'type': 'function-call',
+                'functionCall': {
+                    'parameters': {}  # No transcript
+                },
+                'call': {'id': 'call-no-transcript'}
+            }
+        }
+
+        result = self.handler.handle_webhook(webhook_data)
+
+        # Should handle gracefully with empty transcript
+        assert 'result' in result
+
+    def test_generate_llm_response_with_xai(self):
+        """Test LLM response generation with xAI/Grok-3."""
+        # Create xAI handler
+        xai_handler = CallHandler(llm_api_key="xai-test-key", llm_provider="xai")
         
-        # Duration should have been calculated (but call is removed from active calls)
-        # We can't test this directly since the call is removed, but the duration
-        # calculation logic is tested through the datetime mocking
+        # Mock the xAI client response
+        mock_completion = Mock()
+        mock_completion.choices = [Mock()]
+        mock_completion.choices[0].message.content = "Grok-3 generated response with empathy and support. Remember, this is for inspiration and support, not professional advice. Thank you for calling Voiceback."
+        
+        with patch.object(xai_handler.llm_client, 'chat') as mock_chat:
+            mock_chat.completions.create.return_value = mock_completion
+            
+            result = xai_handler._generate_llm_response("I'm feeling anxious about my presentation")
+            
+            # Verify the response
+            assert "Grok-3 generated response" in result
+            assert "Thank you for calling Voiceback" in result
+            
+            # Verify Grok-3 model was used
+            mock_chat.completions.create.assert_called_once()
+            call_args = mock_chat.completions.create.call_args
+            assert call_args[1]['model'] == 'grok-3'
+            assert len(call_args[1]['messages']) == 2
+            assert call_args[1]['messages'][0]['role'] == 'system'
+            assert call_args[1]['messages'][1]['role'] == 'user'
 
 
 if __name__ == "__main__":

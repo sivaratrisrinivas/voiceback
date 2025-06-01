@@ -15,7 +15,7 @@ import pytest
 sys.path.insert(0, str(Path(__file__).parent.parent / "src"))
 
 try:
-    from main import setup_logging, validate_environment, load_and_validate_configuration, check_vapi_connectivity
+    from main import setup_logging, validate_environment, check_vapi_connectivity
 except ImportError:
     pytest.skip("main module not yet implemented", allow_module_level=True)
 
@@ -29,7 +29,7 @@ class TestMainModule:
         setup_logging()
         assert True  # If we get here, logging setup worked
     
-    @patch.dict(os.environ, {"VAPI_API_KEY": "test_key", "PHONE_NUMBER": "test_number"})
+    @patch.dict(os.environ, {"VAPI_API_KEY": "test_key", "PHONE_NUMBER": "test_number", "OPENAI_API_KEY": "openai_key"})
     def test_validate_environment_success(self):
         """Test environment validation with valid variables."""
         result = validate_environment()
@@ -47,24 +47,11 @@ class TestMainModule:
         result = validate_environment()
         assert result is False
     
-    @patch('main.ConfigManager')
-    def test_load_and_validate_configuration_success(self, mock_config_manager):
-        """Test configuration loading with successful validation."""
-        # Mock the config manager with proper schema structure
-        mock_config = MagicMock()
-        mock_config.load_config.return_value = {
-            "anxiety": [{
-                "figure": "Seneca",
-                "context_lines": ["the Stoic philosopher"],
-                "quote": "We suffer more often in imagination than in reality.",
-                "encouragement_lines": ["You have strength within you."]
-            }]
-        }
-        mock_config.get_emotions.return_value = ["anxiety", "sadness"]
-        mock_config_manager.return_value = mock_config
-        
-        result = load_and_validate_configuration()
-        assert result is True
+    @patch.dict(os.environ, {"VAPI_API_KEY": "test_key", "PHONE_NUMBER": "test_number"}, clear=True)
+    def test_validate_environment_missing_llm_key(self):
+        """Test environment validation with missing LLM API key."""
+        result = validate_environment()
+        assert result is False
     
     @patch('main.VapiClient')
     def test_check_vapi_connectivity_success(self, mock_vapi_client):
@@ -98,23 +85,11 @@ class TestProjectStructure:
         assert src_path.exists()
         assert src_path.is_dir()
     
-    def test_config_directory_exists(self):
-        """Test that config directory exists."""
-        config_path = Path(__file__).parent.parent / "config"
-        assert config_path.exists()
-        assert config_path.is_dir()
-    
     def test_tests_directory_exists(self):
         """Test that tests directory exists."""
         tests_path = Path(__file__).parent.parent / "tests"
         assert tests_path.exists()
         assert tests_path.is_dir()
-    
-    def test_docs_directory_exists(self):
-        """Test that docs directory exists."""
-        docs_path = Path(__file__).parent.parent / "docs"
-        assert docs_path.exists()
-        assert docs_path.is_dir()
     
     def test_requirements_file_exists(self):
         """Test that requirements.txt exists."""
@@ -124,7 +99,7 @@ class TestProjectStructure:
     
     def test_env_template_exists(self):
         """Test that .env.template exists."""
-        env_template_path = Path(__file__).parent.parent / ".env.template"
+        env_template_path = Path(__file__).parent.parent / "env.template"
         assert env_template_path.exists()
         assert env_template_path.is_file()
 

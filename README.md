@@ -1,241 +1,199 @@
-# Voiceback
+# Voiceback - LLM-Powered Voice Agent
 
-> **Call in, share how you feel, and receive instant comfort from history's greatest thinkers in under 30 seconds.**
+A compassionate voice agent that provides emotional support and encouragement through natural AI conversations.
 
-[![Python](https://img.shields.io/badge/python-3.8%2B-blue)](https://www.python.org/)
-[![Tests](https://img.shields.io/badge/tests-90%20passing-green)](#testing)
-[![Development Status](https://img.shields.io/badge/status-Step%205%20Complete-brightgreen)](#development-progress)
+## 🎯 Simple User Journey
 
-Voiceback is a voice-powered agent that delivers timeless wisdom through phone calls. Users dial in, share their emotional state, and receive personalized quotes and encouragement from history's greatest philosophers and thinkers - all in under 30 seconds.
+1. **User speaks** → 2. **Vapi transcribes** → 3. **Flask receives transcript** → 4. **LLM generates response** → 5. **Flask returns response** → 6. **Vapi speaks** → 7. **User hears support**
 
-## 🎯 Project Overview
+## ✨ Key Features
 
-Voiceback bridges the gap between modern emotional needs and ancient wisdom. Built for a 2-day public competition using [Vapi's voice agent platform](https://vapi.ai), this system provides immediate emotional support through carefully curated historical quotes matched to the caller's feelings.
-
-### Key Features
-
-- **🎤 Voice-First Experience**: Natural phone-based interaction with speech-to-text processing
-- **🧠 Emotion Detection**: Intelligent mapping of user expressions to emotional categories
-- **📚 Historical Wisdom**: Curated quotes from Seneca, Marcus Aurelius, and other great thinkers
-- **⚡ 30-Second Interactions**: Optimized for quick, meaningful exchanges
-- **🔄 Dynamic Responses**: Randomized context and encouragement for variety
-- **🚨 Crisis Support**: Built-in safety features with professional resource referrals
-
-## 🚀 Current Status: Step 5 Complete
-
-### ✅ Implemented Features
-
-#### **Phase 1: Foundation (Steps 1-4)**
-- **Vapi Integration**: Full telephony setup with webhook handling
-- **Call Management**: Complete call lifecycle with proper state tracking
-- **Voice Delivery**: Working greeting system with natural speech timing
-- **Testing Infrastructure**: 90 comprehensive tests ensuring reliability
-
-#### **Phase 2: Configuration System (Step 5)**
-- **Emotion Mapping**: JSON-based configuration for anxiety and sadness responses
-- **Quote Management**: Structured storage of historical figures, context, and encouragement
-- **Validation System**: Robust configuration validation with error handling
-- **Extensible Design**: Ready for additional emotions and historical figures
-
-### 📋 Sample Interaction
-
-```
-Caller: "I'm really anxious about tomorrow"
-Voiceback: "It sounds like you're feeling anxious. You remind me of 
-Seneca, the Stoic philosopher who wrote about facing anxiety with courage. 
-[pause] 'We suffer more often in imagination than in reality.' 
-You have the strength to face what lies ahead. Thank you for calling 
-Voiceback."
-```
-
-## 🛠️ Setup & Installation
-
-### Prerequisites
-
-- Python 3.8 or higher
-- [Vapi API account](https://vapi.ai) with API key
-- Phone number configured for inbound calls
-
-### Quick Start
-
-1. **Clone the repository**
-   ```bash
-   git clone https://github.com/sivaratrisrinivas/voiceback.git
-   cd voiceback
-   ```
-
-2. **Set up virtual environment**
-   ```bash
-   python -m venv venv
-   source venv/bin/activate  # On Windows: venv\Scripts\activate
-   ```
-
-3. **Install dependencies**
-   ```bash
-   pip install -r requirements.txt
-   ```
-
-4. **Configure environment**
-   ```bash
-   cp env.template .env
-   # Edit .env with your Vapi API key and configuration
-   ```
-
-5. **Run the application**
-   ```bash
-   python src/main.py
-   ```
-
-### Environment Variables
-
-```bash
-VAPI_API_KEY=your_vapi_api_key_here
-PHONE_NUMBER=your_vapi_phone_number
-WEBHOOK_HOST=your_webhook_url
-WEBHOOK_PORT=5000
-LOG_LEVEL=INFO
-ENVIRONMENT=development
-```
+- **Natural Conversations**: LLM-powered responses that understand context and provide genuine support
+- **Crisis Detection**: Built-in safety with emergency hotline information for crisis situations
+- **Multiple LLM Support**: Compatible with OpenAI, Anthropic Claude, and xAI
+- **Simple Architecture**: Clean, maintainable codebase without complex emotion detection
+- **Real-time Processing**: Instant responses through Vapi webhook integration
 
 ## 🏗️ Architecture
 
 ```
-📞 User Call → 🌐 Vapi Platform → 🎯 Webhook Server → 🧠 Call Handler
-                                                        ↓
-🎭 Emotion Detection ← 📝 Text Processing ← 🗣️ Speech-to-Text
-                    ↓
-📚 Response Builder ← 🎲 Quote Selector ← ⚙️ Config Manager
-                    ↓
-🔊 Voice Delivery → 📞 User
+┌─────────────┐    ┌──────────────┐    ┌─────────────┐    ┌─────────────┐
+│    User     │    │     Vapi     │    │   Flask     │    │     LLM     │
+│   (Voice)   │◄──►│  (Speech)    │◄──►│  (Webhook)  │◄──►│ (Response)  │
+└─────────────┘    └──────────────┘    └─────────────┘    └─────────────┘
 ```
 
 ### Core Components
 
-- **`src/main.py`**: Flask webhook server and application entry point
-- **`src/vapi_client.py`**: Vapi API integration and health checks
-- **`src/call_handler.py`**: Call lifecycle management and state tracking
-- **`src/config_manager.py`**: Configuration loading and validation
-- **`config/responses.json`**: Emotion-to-quote mappings
+- **CallHandler**: Processes Vapi webhooks and manages LLM conversations
+- **VapiClient**: Handles Vapi API integration and health checks  
+- **Flask Server**: Webhook endpoint for real-time call processing
+- **Crisis Detection**: Keyword-based safety system with emergency resources
+
+## 🚀 Quick Start
+
+### 1. Environment Setup
+
+```bash
+# Clone repository
+git clone https://github.com/yourusername/voiceback.git
+cd voiceback
+
+# Create virtual environment
+python -m venv venv
+source venv/bin/activate  # On Windows: venv\Scripts\activate
+
+# Install dependencies
+pip install -r requirements.txt
+```
+
+### 2. Configuration
+
+Copy `.env.template` to `.env` and configure:
+
+```env
+# Required
+VAPI_API_KEY=your_vapi_api_key
+PHONE_NUMBER=your_vapi_phone_number
+OPENAI_API_KEY=your_openai_api_key
+
+# Optional
+WEBHOOK_HOST=localhost
+WEBHOOK_PORT=5000
+LLM_PROVIDER=openai
+LOG_LEVEL=INFO
+```
+
+### 3. Run the Agent
+
+```bash
+# Start the voice agent
+python src/main.py
+```
+
+The server will start and display:
+```
+Voiceback Voice Agent is running!
+Webhook endpoints:
+  - Webhook: http://localhost:5000/webhook
+  - Health Check: http://localhost:5000/health  
+  - Active Calls: http://localhost:5000/calls
+```
 
 ## 🧪 Testing
 
-Run the comprehensive test suite:
-
 ```bash
 # Run all tests
-python -m pytest
+pytest
 
-# Run with coverage
-python -m pytest --cov=src
+# Run specific test suites
+pytest tests/test_call_handler.py -v
+pytest tests/test_main.py -v
+pytest tests/test_vapi_client.py -v
 
-# Run specific test file
-python -m pytest tests/test_config_manager.py -v
+# See the example in action
+python example_usage.py
 ```
 
-### Test Coverage
+## 🔧 API Endpoints
 
-- **90 tests total** across all components
-- **Unit Tests**: Individual component functionality
-- **Integration Tests**: End-to-end call flow simulation
-- **Configuration Tests**: Validation and error handling
+### Webhook (`POST /webhook`)
+Receives Vapi call events and processes user voice input through LLM.
 
-## 🔧 Development Progress
+### Health Check (`GET /health`)
+```json
+{
+  "status": "healthy",
+  "service": "Voiceback Voice Agent", 
+  "checks": {
+    "vapi": {"status": "connected"},
+    "llm": {"provider": "openai", "status": "configured"},
+    "calls": {"count": 0, "status": "active"}
+  }
+}
+```
 
-### Completed Phases
+### Active Calls (`GET /calls`)
+```json
+{
+  "status": "success",
+  "calls": {"call-123": {"status": "active", "started_at": "2024-01-01T12:00:00"}},
+  "count": 1
+}
+```
 
-- [x] **Step 1**: Project structure and environment setup
-- [x] **Step 2**: Vapi connectivity and health checks  
-- [x] **Step 3**: Basic call handling infrastructure
-- [x] **Step 4**: Voice response and greeting delivery
-- [x] **Step 5**: Configuration system foundation
+## 🛡️ Safety Features
 
-### Next Steps
+**Crisis Detection**: Automatically detects keywords like "suicide", "kill myself", etc. and provides:
+- US Suicide & Crisis Lifeline: **988**
+- India AASRA: **9152987821**  
+- Immediate emotional support and professional help guidance
 
-- [ ] **Step 6**: Enhanced configuration with caching and schema validation
-- [ ] **Step 7**: Emotion detection and text processing
-- [ ] **Step 8-11**: Advanced emotion detection with confidence scoring
-- [ ] **Step 12-15**: Response generation and templating system
-- [ ] **Step 16-19**: Call flow management and user input handling
-- [ ] **Step 20-22**: Error handling and crisis detection
-- [ ] **Step 23-24**: Logging and analytics infrastructure
-- [ ] **Step 25-27**: Integration, testing, and performance optimization
+**Disclaimer**: All responses include "Remember, this is for inspiration and support, not professional advice."
 
 ## 📁 Project Structure
 
 ```
 voiceback/
-├── src/                    # Application source code
-│   ├── main.py            # Entry point and webhook server
-│   ├── vapi_client.py     # Vapi API integration
-│   ├── call_handler.py    # Call lifecycle management
-│   └── config_manager.py  # Configuration management
-├── config/                # Configuration files
-│   └── responses.json     # Emotion-to-quote mappings
-├── tests/                 # Test suite
-│   ├── test_main.py
-│   ├── test_vapi_client.py
-│   ├── test_call_handler.py
-│   └── test_config_manager.py
-├── docs/                  # Documentation
-├── requirements.txt       # Python dependencies
-├── env.template          # Environment configuration template
-└── README.md             # Project documentation
+├── src/
+│   ├── main.py              # Flask server entry point
+│   ├── call_handler.py      # LLM-powered webhook processing  
+│   └── vapi_client.py       # Vapi API integration
+├── tests/
+│   ├── test_call_handler.py # CallHandler tests
+│   ├── test_main.py         # Main server tests
+│   └── test_vapi_client.py  # VapiClient tests
+├── example_usage.py         # Demo script
+├── requirements.txt         # Python dependencies
+└── .env.template           # Environment configuration template
 ```
 
-## 🎭 Supported Emotions
+## 🔄 Development
 
-### Currently Available
-- **Anxiety**: Stoic wisdom from Seneca for facing uncertainty
-- **Sadness**: Comfort from Marcus Aurelius on life's sorrows
+### Adding New LLM Providers
 
-### Coming Soon
-- **Frustration**: Guidance on managing anger and irritation
-- **Uncertainty**: Wisdom for navigating confusion and doubt  
-- **Overwhelm**: Support for feeling stressed and exhausted
+1. Update `CallHandler.__init__()` to handle new provider
+2. Add API key validation in `main.py`
+3. Implement provider-specific response generation in `_generate_llm_response()`
 
-## 🔒 Privacy & Safety
+### Customizing Responses
 
-- **Anonymous Interactions**: No personal data stored or tracked
-- **Crisis Detection**: Built-in safety features for concerning language
-- **Professional Resources**: Helpline information (988 US, 9152987821 India)
-- **Secure Processing**: All voice data processed through Vapi's secure platform
+Modify the `system_prompt` in `CallHandler` to adjust the agent's personality and response style.
+
+### Extending Crisis Detection
+
+Add keywords to `CRISIS_KEYWORDS` list or implement more sophisticated detection logic.
+
+## 📊 Benefits vs Previous Architecture
+
+| Aspect | Old Complex System | New LLM System |
+|--------|-------------------|----------------|
+| **Responses** | Hardcoded quotes | Natural AI conversations |
+| **Input Handling** | Complex text processing | Direct LLM understanding |
+| **Maintenance** | Multiple config files | Simple system prompt |
+| **Flexibility** | Fixed emotion categories | Handles any user input |
+| **Codebase** | ~150KB+ components | ~30KB clean code |
 
 ## 🤝 Contributing
 
-This project is built incrementally following a detailed [development blueprint](prompt_plan.md). Each step builds upon the previous while maintaining full functionality.
+1. Fork the repository
+2. Create your feature branch (`git checkout -b feature/amazing-feature`)
+3. Run tests (`pytest`)
+4. Commit your changes (`git commit -m 'Add amazing feature'`)
+5. Push to the branch (`git push origin feature/amazing-feature`)
+6. Open a Pull Request
 
-### Development Workflow
+## 📝 License
 
-1. Follow the step-by-step implementation plan
-2. Maintain test coverage for all new features
-3. Ensure backward compatibility
-4. Update documentation
+This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
 
-### Running Development Server
+## 🆘 Support
 
-```bash
-# Start the webhook server
-python src/main.py
+- 📧 Email: support@voiceback.ai
+- 📱 Phone: Available through Vapi integration
+- 🐛 Issues: [GitHub Issues](https://github.com/yourusername/voiceback/issues)
 
-# Run health check
-python src/main.py --health-check
+---
 
-# Run tests in watch mode
-python -m pytest --watch
-```
-
-## 📊 Performance Targets
-
-- **Response Time**: <5 seconds from emotion detection to quote delivery
-- **Call Completion**: >90% of calls reach successful quote delivery
-- **Interaction Duration**: <30 seconds total per call
-- **Error Rate**: <5% of calls encounter technical issues
-
-## 📄 License
-
-This project is released into the public domain. See the full license in [LICENSE.md](LICENSE.md).
-
-**Voiceback** - *Where voices from the past bring comfort to the present.*
-
-For questions, issues, or contributions, please visit our [GitHub repository](https://github.com/sivaratrisrinivas/voiceback).
+**Voiceback** - Providing compassionate support through the power of voice and AI 💙
 
