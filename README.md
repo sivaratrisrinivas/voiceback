@@ -1,34 +1,154 @@
 # Voiceback - LLM-Powered Voice Agent
 
-A compassionate voice agent that provides emotional support and encouragement through natural AI conversations.
+A conversational voice agent that shares wisdom from ancient philosophers to provide supportive insights through natural phone conversations.
 
 ## 🎯 Simple User Journey
 
-1. **User speaks** → 2. **Vapi transcribes** → 3. **Flask receives transcript** → 4. **LLM generates response** → 5. **Flask returns response** → 6. **Vapi speaks** → 7. **User hears support**
+1. **User calls** → 2. **Vapi answers & transcribes** → 3. **Flask processes & generates wisdom** → 4. **LLM responds with philosophy** → 5. **Vapi speaks response** → 6. **User hears ancient wisdom**
 
 ## ✨ Key Features
 
-- **Natural Conversations**: LLM-powered responses that understand context and provide genuine support
+- **Ancient Philosophy Guidance**: Draw wisdom from Stoics, Greeks, Eastern philosophers to help with modern challenges
+- **Natural Voice Conversations**: LLM-powered responses that understand context and provide philosophical support
 - **Crisis Detection**: Built-in safety with emergency hotline information for crisis situations
-- **Multiple LLM Support**: Compatible with OpenAI, Anthropic Claude, and xAI
-- **Simple Architecture**: Clean, maintainable codebase without complex emotion detection
-- **Real-time Processing**: Instant responses through Vapi webhook integration
+- **Multiple LLM Support**: Compatible with OpenAI, xAI, and future Anthropic support
+- **Simple Architecture**: Clean, maintainable codebase with webhook-based real-time processing
+- **Real-time Processing**: Instant philosophical insights through Vapi webhook integration
 
-## 🏗️ Architecture
+## 🏗️ System Architecture
 
+### High-Level Flow
 ```
-┌─────────────┐    ┌──────────────┐    ┌─────────────┐    ┌─────────────┐
-│    User     │    │     Vapi     │    │   Flask     │    │     LLM     │
-│   (Voice)   │◄──►│  (Speech)    │◄──►│  (Webhook)  │◄──►│ (Response)  │
-└─────────────┘    └──────────────┘    └─────────────┘    └─────────────┘
+┌─────────────┐  ┌──────────────┐  ┌─────────────┐  ┌─────────────┐  ┌─────────────┐
+│    User     │  │     Vapi     │  │   Flask     │  │     LLM     │  │ Philosophy  │
+│   (Phone)   │◄─┤  (Speech     │◄─┤  (Webhook   │◄─┤ (OpenAI/    │◄─┤   Wisdom    │
+│             │  │   AI)        │  │   Server)   │  │   xAI)      │  │  Database   │
+└─────────────┘  └──────────────┘  └─────────────┘  └─────────────┘  └─────────────┘
+```
+
+### Detailed Call Flow
+
+```mermaid
+sequenceDiagram
+    participant User as 📞 User
+    participant Vapi as 🎤 Vapi AI
+    participant Flask as 🌐 Flask Server
+    participant CallHandler as 🧠 CallHandler
+    participant LLM as 🤖 LLM (OpenAI/xAI)
+    participant Philosophy as 📚 Ancient Wisdom
+
+    User->>Vapi: 1. Places call to +1 (414) 441 9889
+    Vapi->>Flask: 2. POST /webhook (call.started)
+    Flask->>CallHandler: 3. handle_webhook(call_started)
+    CallHandler->>Vapi: 4. Returns assistant config
+    
+    User->>Vapi: 5. Speaks about challenge/problem
+    Vapi->>Vapi: 6. Speech-to-text transcription
+    Vapi->>Flask: 7. POST /webhook (function-call)
+    Flask->>CallHandler: 8. handle_webhook(function_call)
+    
+    CallHandler->>CallHandler: 9. Check for crisis keywords
+    alt Crisis Detected
+        CallHandler->>User: Emergency resources (988/AASRA)
+    else Normal Conversation
+        CallHandler->>LLM: 10. Generate philosophical response
+        LLM->>Philosophy: 11. Access ancient wisdom
+        Philosophy->>LLM: 12. Return relevant insights
+        LLM->>CallHandler: 13. Philosophical guidance
+        CallHandler->>Flask: 14. Return LLM response
+        Flask->>Vapi: 15. JSON response with wisdom
+        Vapi->>Vapi: 16. Text-to-speech conversion
+        Vapi->>User: 17. Speaks philosophical guidance
+    end
+    
+    User->>Vapi: 18. Ends call
+    Vapi->>Flask: 19. POST /webhook (call.ended)
+    Flask->>CallHandler: 20. handle_webhook(call_ended)
+    CallHandler->>CallHandler: 21. Cleanup call session
 ```
 
 ### Core Components
 
-- **CallHandler**: Processes Vapi webhooks and manages LLM conversations
-- **VapiClient**: Handles Vapi API integration and health checks  
-- **Flask Server**: Webhook endpoint for real-time call processing
-- **Crisis Detection**: Keyword-based safety system with emergency resources
+#### 1. **Flask Webhook Server** (`src/main.py`)
+- **Purpose**: HTTP server that receives real-time webhooks from Vapi
+- **Endpoints**:
+  - `POST /webhook` - Processes call events and voice transcripts
+  - `GET /health` - Health monitoring with component status
+  - `GET /calls` - Active call management
+- **Responsibilities**:
+  - Validates environment variables (API keys, phone numbers)
+  - Manages server lifecycle and graceful shutdown
+  - Routes webhook events to CallHandler
+  - Provides monitoring and debugging endpoints
+
+#### 2. **CallHandler** (`src/call_handler.py`)
+- **Purpose**: Core business logic for processing voice conversations
+- **Key Features**:
+  - **Ancient Philosophy System Prompt**: Guides LLM to share wisdom from Stoics, Greeks, Eastern philosophers
+  - **Crisis Detection**: Scans for self-harm keywords and provides emergency resources
+  - **Multi-LLM Support**: Adapts to OpenAI, xAI, or Anthropic APIs
+  - **Session Management**: Tracks active calls and conversation context
+- **Philosophy Integration**:
+  - Maps user challenges to philosophical themes (resilience, purpose, mortality)
+  - Connects modern problems with ancient wisdom
+  - Shares historical context from Marcus Aurelius, Epictetus, Seneca, etc.
+
+#### 3. **VapiClient** (`src/vapi_client.py`)
+- **Purpose**: Manages integration with Vapi's voice AI platform
+- **Capabilities**:
+  - **Health Checks**: Validates API connectivity and authentication
+  - **Phone Number Management**: Configures webhook endpoints for incoming calls
+  - **Assistant Configuration**: Sets up voice agent parameters and prompts
+  - **Call Management**: Handles call lifecycle and status monitoring
+- **Error Handling**: Comprehensive exception handling for network and API failures
+
+#### 4. **LLM Integration**
+- **Supported Providers**:
+  - **OpenAI**: Primary provider with GPT-4 models
+  - **xAI**: Grok models via OpenAI-compatible API
+  - **Anthropic**: Planned future support for Claude models
+- **Philosophy Prompt Engineering**:
+  - Structured system prompt with philosophical guidance
+  - Historical context integration
+  - Practical wisdom application to modern challenges
+
+### Infrastructure Components
+
+#### **Vapi Voice AI Platform**
+- **Speech Recognition**: Converts user voice to text in real-time
+- **Text-to-Speech**: Converts AI responses back to natural speech
+- **Call Management**: Handles phone system integration and call routing
+- **Webhook Delivery**: Sends call events and transcripts to Flask server
+
+#### **Environment & Configuration**
+- **Environment Variables**: API keys, phone numbers, server settings
+- **Logging**: Structured logging with loguru for debugging and monitoring
+- **Health Monitoring**: Real-time status checks for all system components
+
+### Data Flow Patterns
+
+#### **Webhook Event Types**
+1. **`call.started`**: Initializes call session and returns assistant configuration
+2. **`function-call`**: Processes user speech and generates philosophical responses
+3. **`assistant-request`**: Handles initial assistant setup for the call
+4. **`call.ended`**: Cleans up call session and resources
+
+#### **Response Generation Flow**
+1. **Input Processing**: Extract user transcript from Vapi webhook
+2. **Crisis Check**: Scan for emergency keywords and provide immediate resources
+3. **Context Building**: Prepare conversation history and philosophical context
+4. **LLM Query**: Send structured prompt to AI with user's situation
+5. **Wisdom Retrieval**: LLM accesses relevant ancient philosophical insights
+6. **Response Crafting**: Generate personalized guidance with historical context
+7. **Safety Addition**: Append disclaimer about inspiration vs. professional advice
+
+#### **Error Handling & Resilience**
+- **API Failures**: Graceful degradation with fallback responses
+- **Network Issues**: Retry logic and timeout handling
+- **Invalid Requests**: Comprehensive input validation and error responses
+- **Resource Cleanup**: Proper session management and memory cleanup
+
+This architecture ensures reliable, real-time philosophical guidance through voice conversations while maintaining safety, scalability, and maintainability.
 
 ## 🚀 Quick Start
 
@@ -182,18 +302,6 @@ Add keywords to `CRISIS_KEYWORDS` list or implement more sophisticated detection
 4. Commit your changes (`git commit -m 'Add amazing feature'`)
 5. Push to the branch (`git push origin feature/amazing-feature`)
 6. Open a Pull Request
-
-## 📝 License
-
-This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
-
-## 🆘 Support
-
-- 📧 Email: support@voiceback.ai
-- 📱 Phone: Available through Vapi integration
-- 🐛 Issues: [GitHub Issues](https://github.com/yourusername/voiceback/issues)
-
----
 
 **Voiceback** - Providing compassionate support through the power of voice and AI 💙
 
